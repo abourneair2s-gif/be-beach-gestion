@@ -39,13 +39,13 @@
 
   .container{padding:0 24px 40px;max-width:1120px;margin:0 auto;}
   .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:22px;}
-  .stat-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px 20px;flex:1 1 180px;min-width:160px;}
+  .stat-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px 20px;flex:1 1 180px;min-width:160px;box-shadow:0 2px 10px rgba(59,54,44,0.05);}
   .stat-label{font-size:12px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;}
   .stat-value{font-family:'Fraunces',serif;font-size:28px;font-weight:600;}
   .stat-sub{font-size:12px;color:var(--ink-soft);margin-top:4px;}
 
   .grid2{display:grid;grid-template-columns:1.2fr 1fr;gap:18px;}
-  .panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 2px 10px rgba(59,54,44,0.05);}
   .panel-title{font-family:'Fraunces',serif;font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
   .muted{color:var(--ink-soft);font-size:13.5px;}
   .sale-row{display:flex;justify-content:space-between;font-size:13.5px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:10px;}
@@ -58,18 +58,20 @@
   .search-wrap{position:relative;flex:1 1 220px;max-width:340px;}
   .search-wrap svg{position:absolute;left:12px;top:11px;}
   .input, select.input{border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:14px;color:var(--ink);background:#fff;outline:none;width:100%;}
-  .btn{border:none;border-radius:12px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;}
-  .btn-coral{background:var(--coral);color:#fff;}
-  .btn-sage{background:var(--sage);color:#fff;}
+  .btn{border:none;border-radius:12px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;transition:transform 0.12s ease, box-shadow 0.12s ease;}
+  .btn-coral{background:var(--coral);color:#fff;box-shadow:0 3px 10px rgba(228,136,107,0.35);}
+  .btn-sage{background:var(--sage);color:#fff;box-shadow:0 3px 10px rgba(147,165,131,0.35);}
   .btn-outline{background:#fff;border:1px solid var(--line);color:var(--ink);}
-  .btn:disabled{background:var(--sand-deep);cursor:not-allowed;}
+  .btn:not(:disabled):hover{transform:translateY(-1px);}
+  .btn:disabled{background:var(--sand-deep);cursor:not-allowed;box-shadow:none;}
 
   .pills{display:flex;gap:8px;overflow-x:auto;padding-bottom:14px;}
   .pill{padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;}
   .pill.active{background:var(--sky);border-color:var(--sky-deep);color:#fff;}
 
   .stock-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;}
-  .stock-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;}
+  .stock-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 2px 8px rgba(59,54,44,0.05);transition:box-shadow 0.15s ease;}
+  .stock-card:hover{box-shadow:0 4px 16px rgba(59,54,44,0.09);}
   .stock-top{display:flex;gap:12px;margin-bottom:10px;}
   .stock-name{font-weight:600;font-size:14px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .stock-meta{font-size:12px;color:var(--ink-soft);margin-bottom:4px;}
@@ -86,7 +88,7 @@
 
   .vente-layout{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;align-items:start;}
   .vente-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;}
-  .vente-tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;}
+  .vente-tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:0 2px 8px rgba(59,54,44,0.05);}
   .vente-tile-name{font-size:12.5px;font-weight:600;margin-top:8px;line-height:1.2;}
   .vente-tile-meta{font-size:11.5px;color:var(--ink-soft);margin:2px 0;}
   .size-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
@@ -106,7 +108,7 @@
   .vente-detail-row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;}
 
   .modal-backdrop{position:fixed;inset:0;background:rgba(59,54,44,0.35);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
-  .modal{background:var(--card);border-radius:20px;padding:24px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;}
+  .modal{background:var(--card);border-radius:20px;padding:24px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;box-shadow:0 12px 40px rgba(59,54,44,0.25);}
   .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
   .modal-close{background:none;border:none;cursor:pointer;color:var(--ink-soft);}
   .field{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--ink-soft);margin-bottom:12px;}
@@ -175,6 +177,20 @@ function uid(){ return Math.random().toString(36).slice(2,10); }
 function qrUrl(code, size){ return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(code)}`; }
 function randomCode(){ return 'BB-' + Math.floor(1000 + Math.random()*9000); }
 
+// Wraps a Supabase call with one automatic retry, to smooth over transient
+// network hiccups (observed as 522 timeouts) without failing the whole action.
+async function withRetry(fn, retries){
+  retries = retries == null ? 1 : retries;
+  try{ return await fn(); }
+  catch(err){
+    if (retries > 0){
+      await new Promise(r => setTimeout(r, 900));
+      return withRetry(fn, retries - 1);
+    }
+    throw err;
+  }
+}
+
 // ---------- State ----------
 let state = {
   tab: 'dashboard',
@@ -186,6 +202,7 @@ let state = {
   search: '',
   ventesearch: '',
   panier: [], // {articleId, taille, qty}
+  modeReglement: 'CB',
   showForm: false,
   editing: null,
   formVariants: [], // {key, dbId, taille, stock}
@@ -206,8 +223,8 @@ async function loadAll(){
   state.loading = true; render();
   try{
     const [{ data: articles, error: e1 }, { data: ventes, error: e2 }] = await Promise.all([
-      sb.from('articles').select('*, article_variants(*)').order('created_at', { ascending: false }),
-      sb.from('ventes').select('*').order('date', { ascending: false }).limit(200)
+      withRetry(() => sb.from('articles').select('*, article_variants(*)').order('created_at', { ascending: false })),
+      withRetry(() => sb.from('ventes').select('*').order('date', { ascending: false }).limit(200))
     ]);
     if (e1) throw e1;
     if (e2) throw e2;
@@ -399,6 +416,8 @@ function panierDetail(){
 function panierTotal(){
   return panierDetail().reduce((s,p) => s + p.article.prix * p.qty, 0);
 }
+function setModeReglement(m){ state.modeReglement = m; render(); }
+
 async function encaisser(){
   const detail = panierDetail();
   if (detail.length === 0) return;
@@ -406,11 +425,11 @@ async function encaisser(){
   const items = detail.map(p => ({ nom: p.article.nom, taille: p.taille, qty: p.qty, prixUnitaire: p.article.prix }));
   state.saving = true; render();
   try{
-    const { error: e1 } = await sb.from('ventes').insert({ date: new Date().toISOString(), items, total });
+    const { error: e1 } = await withRetry(() => sb.from('ventes').insert({ date: new Date().toISOString(), items, total, mode_reglement: state.modeReglement }));
     if (e1) throw e1;
     for (const p of detail){
       const variant = findVariant(p.articleId, p.taille);
-      const { error: e2 } = await sb.from('article_variants').update({ stock: variant.stock - p.qty }).eq('id', variant.id);
+      const { error: e2 } = await withRetry(() => sb.from('article_variants').update({ stock: variant.stock - p.qty }).eq('id', variant.id));
       if (e2) throw e2;
     }
     state.panier = [];
@@ -419,7 +438,10 @@ async function encaisser(){
     setTimeout(() => { state.justSold = false; render(); }, 2200);
   } catch(err){
     console.error(err);
-    alert("Erreur lors de l'encaissement : " + err.message);
+    const msg = /522|timeout|network|fetch/i.test(String(err.message||err))
+      ? "Le réseau a coupé un instant pendant l'encaissement. Vérifie l'onglet Historique : si la vente n'y est pas, réessaie."
+      : "Erreur lors de l'encaissement : " + err.message;
+    alert(msg);
   }
   state.saving = false;
   render();
@@ -646,6 +668,11 @@ function renderVente(){
             </div>
           </div>`).join('')}
       </div>
+      <div class="field" style="margin-bottom:14px;">Mode de règlement
+        <div class="pills" style="padding-bottom:0;">
+          ${['CB','Espèces','Carte cadeau'].map(m => Pill(m, state.modeReglement===m, `setModeReglement('${m}')`)).join('')}
+        </div>
+      </div>
       <div class="cart-total">
         <span style="font-size:14px;color:var(--ink-soft);">Total</span>
         <span class="cart-total-value">${euros(total)}</span>
@@ -664,7 +691,7 @@ function renderHistorique(){
     ${state.ventes.map(v => `
       <details>
         <summary>
-          <span class="muted">${new Date(v.date).toLocaleString('fr-FR',{dateStyle:'medium',timeStyle:'short'})}</span>
+          <span class="muted">${new Date(v.date).toLocaleString('fr-FR',{dateStyle:'medium',timeStyle:'short'})} · ${escapeHtml(v.mode_reglement||'CB')}</span>
           <span style="font-weight:700;">${euros(v.total)}</span>
         </summary>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);">
