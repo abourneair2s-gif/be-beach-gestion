@@ -573,11 +573,21 @@ function openEditForm(articleId){
 }
 function closeForm(){ state.showForm = false; state.editing = null; state.formColors = []; render(); }
 
-function addColorBlock(){ state.formColors.push(newColorBlock()); render(); }
+function renderPreservingModalScroll(){
+  const modal = document.querySelector('.modal');
+  const scrollTop = modal ? modal.scrollTop : null;
+  render();
+  if (scrollTop != null){
+    const newModal = document.querySelector('.modal');
+    if (newModal) newModal.scrollTop = scrollTop;
+  }
+}
+
+function addColorBlock(){ state.formColors.push(newColorBlock()); renderPreservingModalScroll(); }
 function removeColorBlock(colorKey){
   state.formColors = state.formColors.filter(c => c.key !== colorKey);
   if (state.formColors.length === 0) state.formColors.push(newColorBlock());
-  render();
+  renderPreservingModalScroll();
 }
 function findFormColor(colorKey){ return state.formColors.find(c => c.key === colorKey); }
 function updateColorField(colorKey, field, value){
@@ -590,27 +600,27 @@ function regenerateColorCode(colorKey){
   const c = findFormColor(colorKey);
   if (!c) return;
   c.code = randomCode();
-  render();
+  renderPreservingModalScroll();
 }
 
 function addVariantRowToColor(colorKey, taille){
   const c = findFormColor(colorKey);
   if (!c) return;
   c.variants.push({ key: uid(), dbId: null, taille: taille || '', stock: 0 });
-  render();
+  renderPreservingModalScroll();
 }
 function addAllStandardSizesToColor(colorKey){
   const c = findFormColor(colorKey);
   if (!c) return;
   const existing = new Set(c.variants.map(v => v.taille));
   STANDARD_SIZES.forEach(t => { if (!existing.has(t)) c.variants.push({ key: uid(), dbId: null, taille: t, stock: 0 }); });
-  render();
+  renderPreservingModalScroll();
 }
 function removeVariantRowFromColor(colorKey, variantKey){
   const c = findFormColor(colorKey);
   if (!c) return;
   c.variants = c.variants.filter(v => v.key !== variantKey);
-  render();
+  renderPreservingModalScroll();
 }
 function updateColorVariantField(colorKey, variantKey, field, value){
   const c = findFormColor(colorKey);
