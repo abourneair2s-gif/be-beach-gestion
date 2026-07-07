@@ -1091,10 +1091,10 @@ function renderStock(){
               <div class="stock-name">${escapeHtml(a.nom)}</div>
               <div class="stock-meta">${escapeHtml(c.couleur||'')}</div>
               ${priceDisplay(c)}
-              <div class="stock-code-row">
-                <img src="${qrUrl(c.code, 40)}" width="40" height="40" alt="QR ${escapeHtml(c.code)}" style="border-radius:4px;" />
-                <span class="stock-code">${escapeHtml(c.code)}</span>
-              </div>
+            </div>
+            <div style="flex-shrink:0;text-align:center;">
+              <img src="${qrUrl(c.code, 64)}" width="64" height="64" alt="QR ${escapeHtml(c.code)}" style="border-radius:6px;" />
+              <div class="stock-code" style="margin-top:3px;">${escapeHtml(c.code)}</div>
             </div>
           </div>
           <div class="variant-grid">
