@@ -10,4 +10,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// Pas de gestion de fetch : toutes les requêtes passent normalement au réseau.
+// Gestionnaire fetch minimal (obligatoire sur certaines versions d'Android/Chrome
+// pour que le site soit reconnu comme une PWA installable) — laisse simplement
+// passer toutes les requêtes au réseau normalement, sans aucune mise en cache.
+self.addEventListener('fetch', (event) => {
+  event.respondWith(fetch(event.request));
+});
