@@ -1337,15 +1337,16 @@ function renderHeader(){
 }
 
 function renderDashboard(){
-  const stockValue = state.articles.reduce((s,a) => s + stockValueOf(a), 0);
-  const stockCostValue = state.articles.reduce((s,a) => s + stockCostValueOf(a), 0);
+  const merchandiseArticles = state.articles.filter(a => a.collection !== 'Carte cadeau');
+  const stockValue = merchandiseArticles.reduce((s,a) => s + stockValueOf(a), 0);
+  const stockCostValue = merchandiseArticles.reduce((s,a) => s + stockCostValueOf(a), 0);
   const margePotentielle = stockValue - stockCostValue;
   const totalCA = state.ventes.reduce((s,v) => s + Number(v.total), 0);
   const lowStockEntries = [];
-  state.articles.forEach(a => lowEntries(a).forEach(({color,variant}) => lowStockEntries.push({ article:a, color, variant })));
+  merchandiseArticles.forEach(a => lowEntries(a).forEach(({color,variant}) => lowStockEntries.push({ article:a, color, variant })));
   const today = new Date().toDateString();
   const ventesAuj = state.ventes.filter(v => new Date(v.date).toDateString() === today);
-  const totalStockCount = state.articles.reduce((s,a) => s + totalStock(a), 0);
+  const totalStockCount = merchandiseArticles.reduce((s,a) => s + totalStock(a), 0);
 
   return `
   <div style="margin-top:8px;">
