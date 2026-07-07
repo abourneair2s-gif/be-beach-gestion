@@ -87,8 +87,11 @@
   .stock-code-row{display:flex;align-items:center;gap:6px;margin-top:2px;}
   .stock-code{font-size:10.5px;color:var(--ink-soft);font-family:monospace;letter-spacing:0.3px;}
   .price{font-weight:700;color:var(--sky-deep);}
-  .variant-rows{display:flex;flex-direction:column;gap:5px;margin:8px 0;}
-  .variant-row{display:flex;align-items:center;gap:8px;font-size:12.5px;}
+  .variant-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin:10px 0;}
+  .variant-cell{border:1px solid var(--line);border-radius:10px;padding:7px 6px;text-align:center;background:#fff;}
+  .variant-cell-size{font-size:11px;font-weight:700;letter-spacing:0.3px;color:var(--ink-soft);text-transform:uppercase;margin-bottom:2px;}
+  .variant-cell-stock{font-size:18px;font-weight:700;margin-bottom:5px;}
+  .variant-cell-btns{display:flex;justify-content:center;gap:6px;}
   .variant-size{width:38px;flex-shrink:0;font-weight:600;color:var(--ink-soft);}
   .variant-stock{flex:1;font-weight:600;}
   .stock-actions{display:flex;gap:8px;margin-top:8px;}
@@ -1095,13 +1098,15 @@ function renderStock(){
               </div>
             </div>
           </div>
-          <div class="variant-rows">
+          <div class="variant-grid">
             ${c.variants.map(v => `
-              <div class="variant-row">
-                <span class="variant-size">${escapeHtml(v.taille)}</span>
-                <button class="mini-btn" onclick="adjustVariantStock('${v.id}',-1)">${ICONS.minus}</button>
-                <span class="variant-stock" style="color:${v.stock<=a.seuil?'var(--coral-deep)':'var(--sage)'};">${v.stock}</span>
-                <button class="mini-btn" onclick="adjustVariantStock('${v.id}',1)">${ICONS.plus}</button>
+              <div class="variant-cell">
+                <div class="variant-cell-size">${escapeHtml(v.taille)}</div>
+                <div class="variant-cell-stock" style="color:${v.stock<=a.seuil?'var(--coral-deep)':'var(--sage)'};">${v.stock}</div>
+                <div class="variant-cell-btns">
+                  <button class="mini-btn" onclick="adjustVariantStock('${v.id}',-1)">${ICONS.minus}</button>
+                  <button class="mini-btn" onclick="adjustVariantStock('${v.id}',1)">${ICONS.plus}</button>
+                </div>
               </div>`).join('')}
           </div>
           <div class="stock-actions">
