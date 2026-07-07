@@ -229,6 +229,7 @@ let state = {
   toast: null, // { message, kind }
   saleConfirmation: null, // { message } shown inline in the cart panel
   newLieuName: '',
+  showLieuManager: false,
   showForm: false,
   editing: null,
   formVariants: [], // {key, dbId, taille, stock}
@@ -307,6 +308,7 @@ function showToast(message, kind){
 }
 
 function setLieuVente(l){ state.lieuVente = l; render(); }
+function toggleLieuManager(){ state.showLieuManager = !state.showLieuManager; render(); }
 
 function updateNewLieuName(v){ state.newLieuName = v; }
 async function addLieuVente(){
@@ -333,21 +335,32 @@ async function deleteLieuVente(id, nom){
 }
 
 // ---------- Multi-payment (reglements) ----------
+function recalcLastReglement(){
+  const total = panierTotal();
+  if (state.reglements.length < 2){
+    state.reglements[0].montant = total;
+    return;
+  }
+  const others = state.reglements.slice(0, -1).reduce((s,r) => s + (parseFloat(r.montant) || 0), 0);
+  state.reglements[state.reglements.length - 1].montant = +(total - others).toFixed(2);
+}
 function addReglementLine(){
-  const remaining = Math.max(0, +(panierTotal() - reglementsTotal()).toFixed(2));
   const usedModes = new Set(state.reglements.map(r => r.mode));
   const nextMode = MODES_REGLEMENT.find(m => !usedModes.has(m)) || MODES_REGLEMENT[0];
-  state.reglements.push({ mode: nextMode, montant: remaining });
+  state.reglements.push({ mode: nextMode, montant: 0 });
+  recalcLastReglement();
   render();
 }
 function removeReglementLine(idx){
   state.reglements.splice(idx,1);
-  if (state.reglements.length === 0) state.reglements.push({ mode:'CB', montant: panierTotal() });
+  if (state.reglements.length === 0) state.reglements.push({ mode:'CB', montant: 0 });
+  recalcLastReglement();
   render();
 }
 function setReglementMode(idx, mode){ state.reglements[idx].mode = mode; render(); }
 function updateReglementMontant(idx, value){
   state.reglements[idx].montant = value === '' ? '' : parseFloat(value) || 0;
+  recalcLastReglement();
   renderPreservingFocus();
 }
 function reglementsTotal(){
@@ -498,7 +511,7 @@ function addToPanier(articleId, taille){
   if (currentQty >= variant.stock) return;
   if (existing) existing.qty += 1;
   else state.panier.push({ articleId, taille, qty: 1 });
-  syncSingleReglement();
+  recalcLastReglement();
   render();
 }
 function changeQty(articleId, taille, delta){
@@ -507,11 +520,8 @@ function changeQty(articleId, taille, delta){
   if (!p || !variant) return;
   p.qty = Math.min(variant.stock, Math.max(0, p.qty + delta));
   state.panier = state.panier.filter(x => x.qty > 0);
-  syncSingleReglement();
+  recalcLastReglement();
   render();
-}
-function syncSingleReglement(){
-  if (state.reglements.length === 1) state.reglements[0].montant = panierTotal();
 }
 function panierDetail(){
   return state.panier.map(p => ({
@@ -737,6 +747,7 @@ function renderStock(){
 
 function renderReglementsEditor(){
   const remaining = reglementsRemaining();
+  const lastIdx = state.reglements.length - 1;
   return `
   <div class="field" style="margin-bottom:10px;">Mode(s) de règlement
     <div style="display:flex;flex-direction:column;gap:6px;">
@@ -745,31 +756,35 @@ function renderReglementsEditor(){
           <select class="input" style="flex:1.3;" onchange="setReglementMode(${idx}, this.value)">
             ${MODES_REGLEMENT.map(m => `<option value="${m}" ${r.mode===m?'selected':''}>${m}</option>`).join('')}
           </select>
-          ${state.reglements.length > 1
+          ${idx < lastIdx
             ? `<input id="reg-montant-${idx}" class="input" type="number" min="0" step="0.5" style="flex:1;" value="${r.montant}" oninput="updateReglementMontant(${idx}, this.value)" />`
-            : `<span style="flex:1;font-weight:600;text-align:right;padding-right:6px;">${euros(r.montant)}</span>`}
+            : `<span style="flex:1;font-weight:600;text-align:right;padding-right:6px;" title="${lastIdx>0?'Calculé automatiquement':''}">${euros(r.montant)}${lastIdx>0?' <span class=\"muted\" style=\"font-weight:400;font-size:11px;\">(reste)</span>':''}</span>`}
           ${state.reglements.length > 1 ? `<button type="button" class="mini-btn" style="color:var(--coral-deep);" onclick="removeReglementLine(${idx})">${ICONS.x}</button>` : ''}
         </div>`).join('')}
     </div>
     <button type="button" class="add-size-btn" style="margin-top:6px;align-self:flex-start;" onclick="addReglementLine()">+ Ajouter un règlement (paiement partagé)</button>
-    ${state.reglements.length > 1 ? `<div style="font-size:12px;margin-top:4px;color:${Math.abs(remaining)<0.004 ? 'var(--sage)' : 'var(--coral-deep)'};font-weight:600;">${Math.abs(remaining)<0.004 ? 'Montants équilibrés ✓' : (remaining>0 ? `Reste à répartir : ${euros(remaining)}` : `Trop réparti de ${euros(-remaining)}`)}</div>` : ''}
+    ${remaining < -0.004 ? `<div style="font-size:12px;margin-top:4px;color:var(--coral-deep);font-weight:600;">Trop réparti de ${euros(-remaining)}, ajuste un montant</div>` : ''}
   </div>`;
 }
 
 function renderLieuPicker(){
   return `
-  <div class="field" style="margin-bottom:14px;">Lieu de vente
-    <div class="pills" style="padding-bottom:4px;">
-      ${state.lieux.map(l => `
-        <span style="display:inline-flex;align-items:center;gap:3px;">
-          ${Pill(l.nom, state.lieuVente===l.nom, `setLieuVente('${l.nom.replace(/'/g,"\\'")}')`)}
-        </span>`).join('')}
+  <div class="field" style="margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span>Lieu de vente</span>
+      <a href="#" onclick="event.preventDefault();toggleLieuManager()" style="font-size:11px;color:var(--sky-deep);">${state.showLieuManager ? 'Fermer' : 'Gérer les lieux'}</a>
     </div>
-    <div style="display:flex;gap:6px;margin-top:4px;">
-      <input id="new-lieu-input" class="input" placeholder="Nouveau lieu (ex : Marché de Pornichet)" value="${escapeHtml(state.newLieuName)}" oninput="updateNewLieuName(this.value)" />
-      <button type="button" class="add-size-btn" onclick="addLieuVente()">+ Créer</button>
-    </div>
-    ${state.lieux.length ? `<div style="margin-top:4px;">${state.lieux.map(l => `<span style="font-size:10.5px;color:var(--ink-soft);margin-right:8px;">${escapeHtml(l.nom)} <a href="#" onclick="event.preventDefault();deleteLieuVente('${l.id}','${escapeHtml(l.nom).replace(/'/g,"\\'")}')" style="color:var(--coral-deep);">supprimer</a></span>`).join('')}</div>` : ''}
+    <select class="input" onchange="setLieuVente(this.value)">
+      ${state.lieux.map(l => `<option value="${escapeHtml(l.nom)}" ${state.lieuVente===l.nom?'selected':''}>${escapeHtml(l.nom)}</option>`).join('')}
+    </select>
+    ${state.showLieuManager ? `
+      <div style="margin-top:8px;padding:10px;border:1px dashed var(--line);border-radius:10px;">
+        <div style="display:flex;gap:6px;">
+          <input id="new-lieu-input" class="input" placeholder="Nouveau lieu (ex : Marché de Pornichet)" value="${escapeHtml(state.newLieuName)}" oninput="updateNewLieuName(this.value)" />
+          <button type="button" class="add-size-btn" onclick="addLieuVente()">+ Créer</button>
+        </div>
+        ${state.lieux.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;">${state.lieux.map(l => `<span style="font-size:11px;color:var(--ink-soft);">${escapeHtml(l.nom)} <a href="#" onclick="event.preventDefault();deleteLieuVente('${l.id}','${escapeHtml(l.nom).replace(/'/g,"\\'")}')" style="color:var(--coral-deep);">supprimer</a></span>`).join('')}</div>` : ''}
+      </div>` : ''}
   </div>`;
 }
 
@@ -951,9 +966,8 @@ function ventesForExport(){
   });
 }
 
-function exportVentesExcel(){
-  const rows = ventesForExport();
-  if (rows.length === 0){ showToast('Aucune vente sur cette période / ce lieu.', 'error'); return; }
+function downloadVentesAsExcel(rows, filenameLabel){
+  if (rows.length === 0){ showToast('Aucune vente à exporter pour cette sélection.', 'error'); return; }
   const data = rows.map(v => {
     const d = new Date(v.date);
     const reglementsStr = (v.reglements||[]).map(r => `${r.mode}: ${Number(r.montant).toFixed(2)}€`).join(' + ');
@@ -975,8 +989,14 @@ function exportVentesExcel(){
   ws['!cols'] = [{wch:11},{wch:7},{wch:16},{wch:45},{wch:10},{wch:11},{wch:28}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Ventes');
+  XLSX.writeFile(wb, `ventes-bebeach-${filenameLabel}.xlsx`);
+}
+function exportVentesExcel(){
   const label = (state.exportFrom || state.exportTo) ? `${state.exportFrom||'debut'}_au_${state.exportTo||'aujourdhui'}` : 'toutes';
-  XLSX.writeFile(wb, `ventes-bebeach-${label}.xlsx`);
+  downloadVentesAsExcel(ventesForExport(), label);
+}
+function exportVentesDuJourCaisse(){
+  downloadVentesAsExcel(ventesForCaisse(), `${state.caisseDate}_${state.caisseLieu}`.replace(/\s+/g,'-'));
 }
 
 function renderExportPanel(){
@@ -1075,7 +1095,10 @@ function renderCaisse(){
       </div>
 
       <div class="panel">
-        <div class="panel-title">Ventes — ${new Date(state.caisseDate).toLocaleDateString('fr-FR')} · ${escapeHtml(state.caisseLieu)}</div>
+        <div class="panel-title" style="justify-content:space-between;">
+          <span>Ventes — ${new Date(state.caisseDate).toLocaleDateString('fr-FR')} · ${escapeHtml(state.caisseLieu)}</span>
+          <button type="button" class="btn btn-outline btn-sm" onclick="exportVentesDuJourCaisse()">Exporter ce jour (Excel)</button>
+        </div>
         ${ventesJour.length===0 ? '<div class="muted">Aucune vente ce jour, sur ce point de vente.</div>' : ventesJour.map(v => `
           <div class="sale-row">
             <span class="muted">${new Date(v.date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} · ${(v.reglements||[]).map(r=>escapeHtml(r.mode)).join('+')}</span>
@@ -1171,6 +1194,22 @@ function renderToast(){
   const bg = state.toast.kind === 'error' ? 'var(--coral-deep)' : 'var(--sage)';
   return `<div class="toast" style="background:${bg};">${ICONS.check}<span>${escapeHtml(state.toast.message)}</span></div>`;
 }
+
+// ---------- Realtime sync across devices (Mac <-> iPhone) ----------
+let realtimeReloadTimer = null;
+function scheduleRealtimeReload(){
+  // Debounce: several table changes can fire together (e.g. a sale updates
+  // ventes + several article_variants rows), so wait a beat before reloading.
+  clearTimeout(realtimeReloadTimer);
+  realtimeReloadTimer = setTimeout(() => { loadAll(); }, 400);
+}
+sb.channel('bebeach-realtime')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'articles' }, scheduleRealtimeReload)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'article_variants' }, scheduleRealtimeReload)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'ventes' }, scheduleRealtimeReload)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'cloture_caisse' }, scheduleRealtimeReload)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'lieux_vente' }, scheduleRealtimeReload)
+  .subscribe();
 
 loadAll();
 </script>
