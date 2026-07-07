@@ -1721,7 +1721,7 @@ function renderCaisse(){
 
     <div class="grid2">
       <div class="panel">
-        <div class="panel-title">${ICONS.cash} Contrôle de caisse (espèces)</div>
+        <div class="panel-title">${ICONS.cash} Contrôle de caisse (espèces) — ${escapeHtml(state.caisseLieu)}</div>
         <div class="field-row">
           <label class="field" style="flex:1;">Fond de caisse (début)
             <input id="caisse-fond" class="input" type="text" inputmode="decimal" value="${escapeHtml(state.caisseFondCaisse)}" oninput="updateCaisseField('caisseFondCaisse', this.value)" />
