@@ -905,10 +905,13 @@ function updateCaisseField(field, value){
 function ventesForCaisse(){
   return state.ventes.filter(v => v.lieu_vente === state.caisseLieu && dateOnly(v.date) === state.caisseDate);
 }
-function reglementTotalsForCaisse(){
+function ventesForDateAllLieux(){
+  return state.ventes.filter(v => dateOnly(v.date) === state.caisseDate);
+}
+function reglementTotalsFor(rows){
   const totals = {};
   MODES_REGLEMENT.forEach(m => totals[m] = 0);
-  ventesForCaisse().forEach(v => (v.reglements||[]).forEach(r => {
+  rows.forEach(v => (v.reglements||[]).forEach(r => {
     totals[r.mode] = (totals[r.mode] || 0) + Number(r.montant);
   }));
   return totals;
@@ -1029,13 +1032,17 @@ function renderExportPanel(){
 
 function renderCaisse(){
   const ventesJour = ventesForCaisse();
-  const totals = reglementTotalsForCaisse();
+  const totals = reglementTotalsFor(ventesJour);
   const totalCA = ventesJour.reduce((s,v) => s + Number(v.total), 0);
   const fond = parseFloat(state.caisseFondCaisse) || 0;
   const especes = totals['Espèces'] || 0;
   const attendu = fond + especes;
   const comptage = state.caisseComptageReel === '' ? null : parseFloat(state.caisseComptageReel);
   const ecart = comptage == null ? null : +(comptage - attendu).toFixed(2);
+
+  const ventesTousLieux = ventesForDateAllLieux();
+  const totalsTous = reglementTotalsFor(ventesTousLieux);
+  const totalCATous = ventesTousLieux.reduce((s,v) => s + Number(v.total), 0);
 
   return `
   <div style="margin-top:8px;">
@@ -1048,6 +1055,25 @@ function renderCaisse(){
       </div>
     </div>
 
+    <div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Tous les lieux confondus — ${new Date(state.caisseDate).toLocaleDateString('fr-FR')}</div>
+    <div class="stat-row">
+      <div class="stat-card" style="background:var(--sand);">
+        <div class="stat-label">Ventes du jour</div>
+        <div class="stat-value">${ventesTousLieux.length}</div>
+        <div class="stat-sub">Tous lieux</div>
+      </div>
+      <div class="stat-card" style="background:var(--sand);">
+        <div class="stat-label">Chiffre d'affaires</div>
+        <div class="stat-value" style="color:var(--coral-deep);">${euros(totalCATous)}</div>
+      </div>
+      ${MODES_REGLEMENT.map(m => `
+        <div class="stat-card" style="background:var(--sand);">
+          <div class="stat-label">${escapeHtml(m)}</div>
+          <div class="stat-value" style="color:var(--sky-deep);font-size:22px;">${euros(totalsTous[m]||0)}</div>
+        </div>`).join('')}
+    </div>
+
+    <div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 6px;">${escapeHtml(state.caisseLieu)}</div>
     <div class="stat-row">
       <div class="stat-card">
         <div class="stat-label">Ventes du jour</div>
