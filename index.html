@@ -322,6 +322,9 @@ function lowEntries(article){
 function stockValueOf(article){
   return article.colors.reduce((s,c) => s + c.variants.reduce((s2,v) => s2 + v.stock, 0) * prixRemise(c), 0);
 }
+function stockCostValueOf(article){
+  return article.colors.reduce((s,c) => s + c.variants.reduce((s2,v) => s2 + v.stock, 0) * (Number(c.prix_achat)||0), 0);
+}
 
 // ---------- Data loading ----------
 async function loadAll(){
@@ -340,7 +343,7 @@ async function loadAll(){
     state.articles = (articles || []).map(a => ({
       id: a.id, nom: a.nom, collection: a.collection, seuil: a.seuil,
       colors: (a.article_colors || []).map(c => ({
-        id: c.id, couleur: c.couleur, code: c.code, prix: Number(c.prix), remise: Number(c.remise||0), photo: c.photo,
+        id: c.id, couleur: c.couleur, code: c.code, prix: Number(c.prix), prix_achat: Number(c.prix_achat||0), remise: Number(c.remise||0), photo: c.photo,
         variants: sortVariants((c.article_variants || []).map(v => ({ id: v.id, taille: v.taille, stock: v.stock })))
       }))
     }));
@@ -549,7 +552,7 @@ function closeScannerUI(){
 
 // ---------- Actions: article form ----------
 function newColorBlock(){
-  return { key: uid(), dbId: null, couleur: '', code: randomCode(), prix: '', remise: 0, photo: '', variants: [{ key: uid(), dbId: null, taille: 'Unique', stock: 0 }] };
+  return { key: uid(), dbId: null, couleur: '', code: randomCode(), prix: '', prix_achat: '', remise: 0, photo: '', variants: [{ key: uid(), dbId: null, taille: 'Unique', stock: 0 }] };
 }
 function openAddForm(){
   state.editing = null;
@@ -562,7 +565,7 @@ function openEditForm(articleId){
   if (!a) return;
   state.editing = a;
   state.formColors = a.colors.map(c => ({
-    key: uid(), dbId: c.id, couleur: c.couleur, code: c.code, prix: c.prix, remise: c.remise, photo: c.photo,
+    key: uid(), dbId: c.id, couleur: c.couleur, code: c.code, prix: c.prix, prix_achat: c.prix_achat, remise: c.remise, photo: c.photo,
     variants: c.variants.map(v => ({ key: uid(), dbId: v.id, taille: v.taille, stock: v.stock }))
   }));
   state.showForm = true;
@@ -661,6 +664,7 @@ async function saveArticleForm(e){
         couleur: c.couleur.trim(),
         code: c.code.trim(),
         prix: parseFloat(c.prix) || 0,
+        prix_achat: parseFloat(c.prix_achat) || 0,
         remise: parseFloat(c.remise) || 0,
         photo: c.photo.trim(),
       };
@@ -1016,6 +1020,8 @@ function renderHeader(){
 
 function renderDashboard(){
   const stockValue = state.articles.reduce((s,a) => s + stockValueOf(a), 0);
+  const stockCostValue = state.articles.reduce((s,a) => s + stockCostValueOf(a), 0);
+  const margePotentielle = stockValue - stockCostValue;
   const totalCA = state.ventes.reduce((s,v) => s + Number(v.total), 0);
   const lowStockEntries = [];
   state.articles.forEach(a => lowEntries(a).forEach(({color,variant}) => lowStockEntries.push({ article:a, color, variant })));
@@ -1045,6 +1051,22 @@ function renderDashboard(){
         <div class="stat-label">Alertes stock bas</div>
         <div class="stat-value" style="color:${lowStockEntries.length?'var(--coral-deep)':'var(--sage)'};">${lowStockEntries.length}</div>
         <div class="stat-sub">${lowStockEntries.length ? 'à réapprovisionner' : 'tout va bien'}</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Valorisation du stock</div>
+    <div class="stat-row">
+      <div class="stat-card" style="background:var(--sand);">
+        <div class="stat-label">Valeur stock (prix de vente)</div>
+        <div class="stat-value" style="font-size:20px;">${euros(stockValue)}</div>
+      </div>
+      <div class="stat-card" style="background:var(--sand);">
+        <div class="stat-label">Valeur stock (prix d'achat)</div>
+        <div class="stat-value" style="font-size:20px;">${euros(stockCostValue)}</div>
+      </div>
+      <div class="stat-card" style="background:var(--sand);">
+        <div class="stat-label">Marge potentielle</div>
+        <div class="stat-value" style="font-size:20px;color:${margePotentielle>=0?'var(--sage)':'var(--coral-deep)'};">${euros(margePotentielle)}</div>
+        <div class="stat-sub">si tout le stock était vendu</div>
       </div>
     </div>
     <div class="grid2">
@@ -1458,7 +1480,7 @@ function renderColorBlock(c, index){
       <div style="flex:1;min-width:0;">
         <div class="field-row" style="margin-bottom:0;">
           <label class="field" style="flex:1;">Couleur
-            <input class="input" value="${escapeHtml(c.couleur)}" placeholder="Ex : Bleu ciel" oninput="updateColorField('${c.key}','couleur',this.value)" />
+            <input id="cf-couleur-${c.key}" class="input" value="${escapeHtml(c.couleur)}" placeholder="Ex : Bleu ciel" oninput="updateColorField('${c.key}','couleur',this.value)" />
           </label>
         </div>
       </div>
@@ -1466,20 +1488,25 @@ function renderColorBlock(c, index){
     <div class="field-row">
       <label class="field" style="flex:1.4;">Code (QR / code-barres)
         <div style="display:flex;gap:6px;">
-          <input class="input" value="${escapeHtml(c.code)}" oninput="updateColorField('${c.key}','code',this.value)" />
+          <input id="cf-code-${c.key}" class="input" value="${escapeHtml(c.code)}" oninput="updateColorField('${c.key}','code',this.value)" />
           <button type="button" class="add-size-btn" onclick="regenerateColorCode('${c.key}')">Générer</button>
         </div>
       </label>
     </div>
     <div class="field-row">
-      <label class="field" style="flex:1;">Prix (€)
-        <input class="input" type="number" min="0" step="0.5" value="${c.prix}" oninput="updateColorField('${c.key}','prix',this.value)" />
+      <label class="field" style="flex:1;">Prix de vente (€)
+        <input id="cf-prix-${c.key}" class="input" type="text" inputmode="decimal" value="${c.prix}" oninput="updateColorField('${c.key}','prix',this.value)" />
+      </label>
+      <label class="field" style="flex:1;">Prix d'achat (€)
+        <input id="cf-prixachat-${c.key}" class="input" type="text" inputmode="decimal" value="${c.prix_achat}" oninput="updateColorField('${c.key}','prix_achat',this.value)" />
       </label>
       <label class="field" style="flex:1;">Remise (%)
-        <input class="input" type="number" min="0" max="100" step="1" value="${c.remise}" oninput="updateColorField('${c.key}','remise',this.value)" />
+        <input id="cf-remise-${c.key}" class="input" type="text" inputmode="decimal" value="${c.remise}" oninput="updateColorField('${c.key}','remise',this.value)" />
       </label>
+    </div>
+    <div class="field-row">
       <label class="field" style="flex:1;">Photo (URL)
-        <input class="input" value="${escapeHtml(c.photo||'')}" placeholder="https://..." oninput="updateColorField('${c.key}','photo',this.value)" />
+        <input id="cf-photo-${c.key}" class="input" value="${escapeHtml(c.photo||'')}" placeholder="https://..." oninput="updateColorField('${c.key}','photo',this.value)" />
       </label>
     </div>
     ${(parseFloat(c.remise)||0) > 0 ? `<div class="price-preview">Prix remisé : <b>${euros(finalPrice)}</b> <span style="text-decoration:line-through;">${euros(parseFloat(c.prix)||0)}</span></div>` : ''}
@@ -1487,8 +1514,8 @@ function renderColorBlock(c, index){
       <div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px;">Tailles &amp; stock (pour cette couleur)</div>
       ${c.variants.map(v => `
         <div class="variant-editor-row">
-          <input class="input taille-input" placeholder="Taille" value="${escapeHtml(v.taille)}" oninput="updateColorVariantField('${c.key}','${v.key}','taille',this.value)" />
-          <input class="input" type="number" min="0" placeholder="Stock" value="${v.stock}" oninput="updateColorVariantField('${c.key}','${v.key}','stock',this.value)" />
+          <input id="cf-taille-${c.key}-${v.key}" class="input taille-input" placeholder="Taille" value="${escapeHtml(v.taille)}" oninput="updateColorVariantField('${c.key}','${v.key}','taille',this.value)" />
+          <input id="cf-stock-${c.key}-${v.key}" class="input" type="text" inputmode="numeric" placeholder="Stock" value="${v.stock}" oninput="updateColorVariantField('${c.key}','${v.key}','stock',this.value)" />
           <button type="button" class="mini-btn" style="color:var(--coral-deep);" onclick="removeVariantRowFromColor('${c.key}','${v.key}')">${ICONS.x}</button>
         </div>`).join('')}
       <div class="add-size-row">
