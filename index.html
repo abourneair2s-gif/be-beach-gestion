@@ -37,7 +37,7 @@
   .nav-btn.active{background:#fff;color:var(--sky-deep);}
   .wave{position:absolute;bottom:-1px;left:0;width:100%;height:40px;display:block;}
 
-  .container{padding:0 24px 40px;max-width:1080px;margin:0 auto;}
+  .container{padding:0 24px 40px;max-width:1120px;margin:0 auto;}
   .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:22px;}
   .stat-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px 20px;flex:1 1 180px;min-width:160px;}
   .stat-label{font-size:12px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;}
@@ -55,7 +55,7 @@
   .thumb-fallback{background:var(--sand);display:flex;align-items:center;justify-content:center;color:var(--ink-soft);}
 
   .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
-  .search-wrap{position:relative;flex:1 1 220px;max-width:320px;}
+  .search-wrap{position:relative;flex:1 1 220px;max-width:340px;}
   .search-wrap svg{position:absolute;left:12px;top:11px;}
   .input, select.input{border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:14px;color:var(--ink);background:#fff;outline:none;width:100%;}
   .btn{border:none;border-radius:12px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;}
@@ -68,21 +68,31 @@
   .pill{padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;}
   .pill.active{background:var(--sky);border-color:var(--sky-deep);color:#fff;}
 
-  .stock-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;}
-  .stock-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;gap:12px;}
+  .stock-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;}
+  .stock-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;}
+  .stock-top{display:flex;gap:12px;margin-bottom:10px;}
   .stock-name{font-weight:600;font-size:14px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .stock-meta{font-size:12px;color:var(--ink-soft);margin-bottom:6px;}
-  .stock-bottom{display:flex;justify-content:space-between;align-items:center;}
+  .stock-meta{font-size:12px;color:var(--ink-soft);margin-bottom:4px;}
+  .stock-code-row{display:flex;align-items:center;gap:6px;margin-top:2px;}
+  .stock-code{font-size:10.5px;color:var(--ink-soft);font-family:monospace;letter-spacing:0.3px;}
   .price{font-weight:700;color:var(--sky-deep);}
+  .variant-rows{display:flex;flex-direction:column;gap:5px;margin:8px 0;}
+  .variant-row{display:flex;align-items:center;gap:8px;font-size:12.5px;}
+  .variant-size{width:38px;flex-shrink:0;font-weight:600;color:var(--ink-soft);}
+  .variant-stock{flex:1;font-weight:600;}
   .stock-actions{display:flex;gap:8px;margin-top:8px;}
   .btn-sm{padding:5px 10px;font-size:12px;border-radius:10px;}
+  .mini-btn{width:20px;height:20px;border-radius:50%;border:1px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex-shrink:0;}
 
   .vente-layout{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;align-items:start;}
-  .vente-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
-  .vente-tile{text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;cursor:pointer;}
-  .vente-tile:disabled{opacity:0.5;cursor:not-allowed;}
+  .vente-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;}
+  .vente-tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;}
   .vente-tile-name{font-size:12.5px;font-weight:600;margin-top:8px;line-height:1.2;}
   .vente-tile-meta{font-size:11.5px;color:var(--ink-soft);margin:2px 0;}
+  .size-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
+  .size-chip{border:1px solid var(--line);background:#fff;border-radius:7px;padding:3px 6px;font-size:11px;font-weight:600;cursor:pointer;color:var(--ink);}
+  .size-chip:disabled{opacity:0.35;cursor:not-allowed;text-decoration:line-through;}
+  .size-chip:not(:disabled):hover{background:var(--sky);color:#fff;border-color:var(--sky-deep);}
 
   .cart{position:sticky;top:16px;}
   .cart-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
@@ -96,13 +106,20 @@
   .vente-detail-row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;}
 
   .modal-backdrop{position:fixed;inset:0;background:rgba(59,54,44,0.35);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
-  .modal{background:var(--card);border-radius:20px;padding:24px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto;}
+  .modal{background:var(--card);border-radius:20px;padding:24px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;}
   .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
   .modal-close{background:none;border:none;cursor:pointer;color:var(--ink-soft);}
   .field{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--ink-soft);margin-bottom:12px;}
   .field-row{display:flex;gap:10px;}
   .hint{font-size:11.5px;color:var(--ink-soft);margin-top:-6px;margin-bottom:12px;}
   .modal-actions{display:flex;gap:10px;margin-top:8px;}
+
+  .variant-editor{border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:12px;}
+  .variant-editor-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .variant-editor-row input{flex:1;}
+  .variant-editor-row input.taille-input{max-width:80px;flex:none;}
+  .add-size-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+  .add-size-btn{border:1px dashed var(--line);background:#fff;border-radius:8px;padding:5px 9px;font-size:11.5px;cursor:pointer;color:var(--ink-soft);}
 
   .loading-screen{display:flex;align-items:center;justify-content:center;height:100vh;color:var(--ink-soft);font-size:14px;}
 
@@ -121,6 +138,16 @@ const SUPABASE_KEY = 'sb_publishable_iMTMuEGzCBXtGfhQkPWSrw_3AsYC84Y';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const COLLECTIONS = ["T-shirts","Hoodies","Vestes zippées","Casquettes et bonnets","Sacs","Porte-clés motel","Pin's émaillés","Stickers"];
+const SIZE_ORDER = ["XS","S","M","L","XL","XXL","Unique"];
+const STANDARD_SIZES = ["XS","S","M","L","XL","XXL"];
+
+function sizeRank(t){
+  const i = SIZE_ORDER.indexOf(t);
+  return i === -1 ? 99 : i;
+}
+function sortVariants(variants){
+  return [...variants].sort((a,b) => sizeRank(a.taille) - sizeRank(b.taille));
+}
 
 const ICONS = {
   home: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9"/><path d="M5 10v10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-4h2v4a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V10"/></svg>',
@@ -138,28 +165,40 @@ const ICONS = {
   wave: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 15c2 0 2-3 4-3s2 3 4 3 2-3 4-3 2 3 4 3 2-3 4-3"/><path d="M2 20c2 0 2-3 4-3s2 3 4 3 2-3 4-3 2 3 4 3 2-3 4-3"/></svg>'
 };
 
-// ---------- State ----------
-let state = {
-  tab: 'dashboard',
-  articles: [],
-  ventes: [],
-  loading: true,
-  error: null,
-  collectionFilter: 'Toutes',
-  search: '',
-  panier: [], // {articleId, qty}
-  showForm: false,
-  editing: null,
-  confirmDelete: null,
-  justSold: false,
-  saving: false,
-};
-
 function euros(n){
   return (Number(n)||0).toLocaleString('fr-FR', { style:'currency', currency:'EUR' });
 }
 function escapeHtml(s){
   return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function qrUrl(code, size){ return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(code)}`; }
+function randomCode(){ return 'BB-' + Math.floor(1000 + Math.random()*9000); }
+
+// ---------- State ----------
+let state = {
+  tab: 'dashboard',
+  articles: [], // { ...article fields, variants: [{id,taille,stock}] }
+  ventes: [],
+  loading: true,
+  error: null,
+  collectionFilter: 'Toutes',
+  search: '',
+  ventesearch: '',
+  panier: [], // {articleId, taille, qty}
+  showForm: false,
+  editing: null,
+  formVariants: [], // {key, dbId, taille, stock}
+  confirmDelete: null,
+  justSold: false,
+  saving: false,
+};
+
+function totalStock(article){
+  return (article.variants||[]).reduce((s,v) => s + v.stock, 0);
+}
+function lowVariants(article){
+  return (article.variants||[]).filter(v => v.stock <= article.seuil);
 }
 
 // ---------- Data loading ----------
@@ -167,12 +206,15 @@ async function loadAll(){
   state.loading = true; render();
   try{
     const [{ data: articles, error: e1 }, { data: ventes, error: e2 }] = await Promise.all([
-      sb.from('articles').select('*').order('created_at', { ascending: false }),
+      sb.from('articles').select('*, article_variants(*)').order('created_at', { ascending: false }),
       sb.from('ventes').select('*').order('date', { ascending: false }).limit(200)
     ]);
     if (e1) throw e1;
     if (e2) throw e2;
-    state.articles = articles || [];
+    state.articles = (articles || []).map(a => ({
+      ...a,
+      variants: sortVariants((a.article_variants || []).map(v => ({ id: v.id, taille: v.taille, stock: v.stock })))
+    }));
     state.ventes = ventes || [];
     state.error = null;
   } catch(err){
@@ -183,38 +225,108 @@ async function loadAll(){
   render();
 }
 
-// ---------- Actions ----------
+// ---------- Actions: navigation ----------
 function setTab(t){ state.tab = t; state.confirmDelete = null; render(); }
 function setCollectionFilter(c){ state.collectionFilter = c; render(); }
-function openAddForm(){ state.editing = null; state.showForm = true; render(); }
-function openEditForm(id){ state.editing = state.articles.find(a => a.id === id) || null; state.showForm = true; render(); }
-function closeForm(){ state.showForm = false; state.editing = null; render(); }
+function onSearchInput(e){ liveSearch('search', e); }
+function onVenteSearchInput(e){ liveSearch('ventesearch', e); }
+function liveSearch(key, e){
+  state[key] = e.target.value;
+  const id = e.target.id;
+  const pos = e.target.selectionStart;
+  render();
+  const el = document.getElementById(id);
+  if (el){ el.focus(); if (pos != null) el.setSelectionRange(pos,pos); }
+}
+
+// ---------- Actions: article form ----------
+function openAddForm(){
+  state.editing = null;
+  state.formVariants = [{ key: uid(), dbId: null, taille: 'Unique', stock: 0 }];
+  state.showForm = true;
+  render();
+}
+function openEditForm(id){
+  const a = state.articles.find(x => x.id === id);
+  if (!a) return;
+  state.editing = a;
+  state.formVariants = a.variants.map(v => ({ key: uid(), dbId: v.id, taille: v.taille, stock: v.stock }));
+  state.showForm = true;
+  render();
+}
+function closeForm(){ state.showForm = false; state.editing = null; state.formVariants = []; render(); }
+
+function addVariantRow(taille){
+  state.formVariants.push({ key: uid(), dbId: null, taille: taille || '', stock: 0 });
+  render();
+}
+function addAllStandardSizes(){
+  const existing = new Set(state.formVariants.map(v => v.taille));
+  STANDARD_SIZES.forEach(t => {
+    if (!existing.has(t)) state.formVariants.push({ key: uid(), dbId: null, taille: t, stock: 0 });
+  });
+  render();
+}
+function removeVariantRow(key){
+  state.formVariants = state.formVariants.filter(v => v.key !== key);
+  render();
+}
+function updateVariantField(key, field, value){
+  const row = state.formVariants.find(v => v.key === key);
+  if (!row) return;
+  row[field] = field === 'stock' ? (parseInt(value) || 0) : value;
+}
 
 async function saveArticleForm(e){
   e.preventDefault();
   const f = e.target;
   const payload = {
+    code: f.code.value.trim() || randomCode(),
     nom: f.nom.value.trim(),
     collection: f.collection.value,
     couleur: f.couleur.value.trim(),
-    taille: f.taille.value.trim(),
     prix: parseFloat(f.prix.value) || 0,
-    stock: parseInt(f.stock.value) || 0,
     seuil: parseInt(f.seuil.value) || 0,
     photo: f.photo.value.trim(),
   };
-  if (!payload.nom) return;
+  const variantsToSave = state.formVariants.filter(v => v.taille.trim() !== '');
+  if (!payload.nom || variantsToSave.length === 0) return;
+
   state.saving = true; render();
   try{
+    let articleId;
     if (state.editing){
-      const { error } = await sb.from('articles').update(payload).eq('id', state.editing.id);
+      articleId = state.editing.id;
+      const { error } = await sb.from('articles').update(payload).eq('id', articleId);
       if (error) throw error;
+
+      const originalIds = new Set(state.editing.variants.map(v => v.id));
+      const keptIds = new Set(variantsToSave.filter(v => v.dbId).map(v => v.dbId));
+      const toDelete = [...originalIds].filter(id => !keptIds.has(id));
+      for (const id of toDelete){
+        const { error: de } = await sb.from('article_variants').delete().eq('id', id);
+        if (de) throw de;
+      }
+      for (const v of variantsToSave){
+        if (v.dbId){
+          const { error: ue } = await sb.from('article_variants').update({ taille: v.taille.trim(), stock: v.stock }).eq('id', v.dbId);
+          if (ue) throw ue;
+        } else {
+          const { error: ie } = await sb.from('article_variants').insert({ article_id: articleId, taille: v.taille.trim(), stock: v.stock });
+          if (ie) throw ie;
+        }
+      }
     } else {
-      const { error } = await sb.from('articles').insert(payload);
+      const { data, error } = await sb.from('articles').insert(payload).select().single();
       if (error) throw error;
+      articleId = data.id;
+      const rows = variantsToSave.map(v => ({ article_id: articleId, taille: v.taille.trim(), stock: v.stock }));
+      const { error: ie } = await sb.from('article_variants').insert(rows);
+      if (ie) throw ie;
     }
     state.showForm = false;
     state.editing = null;
+    state.formVariants = [];
     await loadAll();
   } catch(err){
     console.error(err);
@@ -238,43 +350,67 @@ async function deleteArticle(id){
   render();
 }
 
-function addToPanier(id){
-  const article = state.articles.find(a => a.id === id);
+// Quick inline +/- stock adjust directly from the Stock tab (no need to open the form)
+async function adjustVariantStock(variantId, delta){
+  const article = state.articles.find(a => (a.variants||[]).some(v => v.id === variantId));
   if (!article) return;
-  const existing = state.panier.find(p => p.articleId === id);
+  const variant = article.variants.find(v => v.id === variantId);
+  const newStock = Math.max(0, variant.stock + delta);
+  variant.stock = newStock; // optimistic
+  render();
+  try{
+    const { error } = await sb.from('article_variants').update({ stock: newStock }).eq('id', variantId);
+    if (error) throw error;
+  } catch(err){
+    console.error(err);
+    await loadAll();
+  }
+}
+
+// ---------- Actions: vente / panier ----------
+function findVariant(articleId, taille){
+  const a = state.articles.find(x => x.id === articleId);
+  return a ? a.variants.find(v => v.taille === taille) : null;
+}
+function addToPanier(articleId, taille){
+  const variant = findVariant(articleId, taille);
+  if (!variant) return;
+  const existing = state.panier.find(p => p.articleId === articleId && p.taille === taille);
   const currentQty = existing ? existing.qty : 0;
-  if (currentQty >= article.stock) return;
+  if (currentQty >= variant.stock) return;
   if (existing) existing.qty += 1;
-  else state.panier.push({ articleId: id, qty: 1 });
+  else state.panier.push({ articleId, taille, qty: 1 });
   render();
 }
-function changeQty(id, delta){
-  const article = state.articles.find(a => a.id === id);
-  const p = state.panier.find(x => x.articleId === id);
-  if (!p) return;
-  p.qty = Math.min(article.stock, Math.max(0, p.qty + delta));
+function changeQty(articleId, taille, delta){
+  const variant = findVariant(articleId, taille);
+  const p = state.panier.find(x => x.articleId === articleId && x.taille === taille);
+  if (!p || !variant) return;
+  p.qty = Math.min(variant.stock, Math.max(0, p.qty + delta));
   state.panier = state.panier.filter(x => x.qty > 0);
   render();
 }
-
 function panierDetail(){
-  return state.panier.map(p => ({ ...p, article: state.articles.find(a => a.id === p.articleId) })).filter(p => p.article);
+  return state.panier.map(p => ({
+    ...p,
+    article: state.articles.find(a => a.id === p.articleId)
+  })).filter(p => p.article);
 }
 function panierTotal(){
   return panierDetail().reduce((s,p) => s + p.article.prix * p.qty, 0);
 }
-
 async function encaisser(){
   const detail = panierDetail();
   if (detail.length === 0) return;
   const total = panierTotal();
-  const items = detail.map(p => ({ nom: p.article.nom, qty: p.qty, prixUnitaire: p.article.prix }));
+  const items = detail.map(p => ({ nom: p.article.nom, taille: p.taille, qty: p.qty, prixUnitaire: p.article.prix }));
   state.saving = true; render();
   try{
     const { error: e1 } = await sb.from('ventes').insert({ date: new Date().toISOString(), items, total });
     if (e1) throw e1;
     for (const p of detail){
-      const { error: e2 } = await sb.from('articles').update({ stock: p.article.stock - p.qty }).eq('id', p.articleId);
+      const variant = findVariant(p.articleId, p.taille);
+      const { error: e2 } = await sb.from('article_variants').update({ stock: variant.stock - p.qty }).eq('id', variant.id);
       if (e2) throw e2;
     }
     state.panier = [];
@@ -289,16 +425,20 @@ async function encaisser(){
   render();
 }
 
-function onSearchInput(e){
-  state.search = e.target.value;
-  const active = document.activeElement;
-  const pos = active && active.selectionStart;
-  render();
-  const el = document.getElementById('search-input');
-  if (el){ el.focus(); if (pos != null) el.setSelectionRange(pos,pos); }
+// ---------- Filtering ----------
+function matchesQuery(a, query){
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return a.nom.toLowerCase().includes(q) || (a.code||'').toLowerCase().includes(q);
+}
+function filteredArticles(query){
+  return state.articles.filter(a => {
+    const matchCol = state.collectionFilter === 'Toutes' || a.collection === state.collectionFilter;
+    return matchCol && matchesQuery(a, query);
+  });
 }
 
-// ---------- Rendering helpers ----------
+// ---------- Render helpers ----------
 function PhotoSafe(photo, alt, size, radius){
   radius = radius || 12;
   const style = `width:${size}px;height:${size}px;border-radius:${radius}px;`;
@@ -307,8 +447,6 @@ function PhotoSafe(photo, alt, size, radius){
   }
   return `<img class="thumb" src="${escapeHtml(photo)}" alt="${escapeHtml(alt)}" style="${style}" />`;
 }
-// Delegated fallback: if a .thumb <img> fails to load, swap it for the placeholder icon.
-// 'error' events don't bubble, so this listener uses the capture phase.
 document.addEventListener('error', function(e){
   const img = e.target;
   if (img && img.tagName === 'IMG' && img.classList && img.classList.contains('thumb')){
@@ -324,12 +462,18 @@ function Pill(label, active, onclick){
   return `<button class="pill ${active ? 'active' : ''}" onclick="${onclick}">${escapeHtml(label)}</button>`;
 }
 
-function filteredArticles(){
-  return state.articles.filter(a => {
-    const matchCol = state.collectionFilter === 'Toutes' || a.collection === state.collectionFilter;
-    const matchSearch = a.nom.toLowerCase().includes(state.search.toLowerCase());
-    return matchCol && matchSearch;
-  });
+function SearchBox(id, value, oninput, placeholder){
+  return `<div class="search-wrap">
+    ${ICONS.search}
+    <input id="${id}" class="input" style="padding-left:32px;" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(value)}" oninput="${oninput}(event)" />
+  </div>`;
+}
+
+function CollectionPills(){
+  return `<div class="pills">
+    ${Pill('Toutes', state.collectionFilter==='Toutes', "setCollectionFilter('Toutes')")}
+    ${COLLECTIONS.map(c => Pill(c, state.collectionFilter===c, `setCollectionFilter('${c.replace(/'/g,"\\'")}')`)).join('')}
+  </div>`;
 }
 
 // ---------- Views ----------
@@ -359,12 +503,13 @@ function renderHeader(){
 }
 
 function renderDashboard(){
-  const stockValue = state.articles.reduce((s,a) => s + a.prix * a.stock, 0);
+  const stockValue = state.articles.reduce((s,a) => s + a.prix * totalStock(a), 0);
   const totalCA = state.ventes.reduce((s,v) => s + Number(v.total), 0);
-  const lowStock = state.articles.filter(a => a.stock <= a.seuil);
+  const lowStockEntries = [];
+  state.articles.forEach(a => lowVariants(a).forEach(v => lowStockEntries.push({ article: a, variant: v })));
   const today = new Date().toDateString();
   const ventesAuj = state.ventes.filter(v => new Date(v.date).toDateString() === today);
-  const totalStockCount = state.articles.reduce((s,a) => s + a.stock, 0);
+  const totalStockCount = state.articles.reduce((s,a) => s + totalStock(a), 0);
 
   return `
   <div style="margin-top:8px;">
@@ -382,12 +527,12 @@ function renderDashboard(){
       <div class="stat-card">
         <div class="stat-label">Valeur du stock</div>
         <div class="stat-value">${euros(stockValue)}</div>
-        <div class="stat-sub">${totalStockCount} articles en boutique</div>
+        <div class="stat-sub">${totalStockCount} pièces en boutique</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Alertes stock bas</div>
-        <div class="stat-value" style="color:${lowStock.length?'var(--coral-deep)':'var(--sage)'};">${lowStock.length}</div>
-        <div class="stat-sub">${lowStock.length ? 'à réapprovisionner' : 'tout va bien'}</div>
+        <div class="stat-value" style="color:${lowStockEntries.length?'var(--coral-deep)':'var(--sage)'};">${lowStockEntries.length}</div>
+        <div class="stat-sub">${lowStockEntries.length ? 'à réapprovisionner' : 'tout va bien'}</div>
       </div>
     </div>
     <div class="grid2">
@@ -401,11 +546,11 @@ function renderDashboard(){
       </div>
       <div class="panel">
         <div class="panel-title">${ICONS.alert} Stock bas</div>
-        ${lowStock.length===0 ? '<div class="muted">Aucune alerte, tout est bien approvisionné.</div>' : lowStock.map(a => `
+        ${lowStockEntries.length===0 ? '<div class="muted">Aucune alerte, tout est bien approvisionné.</div>' : lowStockEntries.map(({article,variant}) => `
           <div class="lowstock-row">
-            ${PhotoSafe(a.photo, a.nom, 34, 8)}
-            <div style="flex:1;">${escapeHtml(a.nom)}</div>
-            <span style="color:var(--coral-deep);font-weight:700;">${a.stock} restant${a.stock>1?'s':''}</span>
+            ${PhotoSafe(article.photo, article.nom, 34, 8)}
+            <div style="flex:1;">${escapeHtml(article.nom)} <span class="muted">· ${escapeHtml(variant.taille)}</span></div>
+            <span style="color:var(--coral-deep);font-weight:700;">${variant.stock} restant${variant.stock>1?'s':''}</span>
           </div>`).join('')}
       </div>
     </div>
@@ -413,37 +558,43 @@ function renderDashboard(){
 }
 
 function renderStock(){
-  const list = filteredArticles();
+  const list = filteredArticles(state.search);
   return `
   <div style="margin-top:8px;">
     <div class="toolbar">
-      <div class="search-wrap">
-        ${ICONS.search}
-        <input id="search-input" class="input" style="padding-left:32px;" placeholder="Rechercher un article..." value="${escapeHtml(state.search)}" oninput="onSearchInput(event)" />
-      </div>
+      ${SearchBox('search-input', state.search, 'onSearchInput', 'Rechercher par nom ou code...')}
       <button class="btn btn-coral" onclick="openAddForm()" style="display:flex;align-items:center;gap:6px;">${ICONS.plus} Ajouter un article</button>
     </div>
-    <div class="pills">
-      ${Pill('Toutes', state.collectionFilter==='Toutes', "setCollectionFilter('Toutes')")}
-      ${COLLECTIONS.map(c => Pill(c, state.collectionFilter===c, `setCollectionFilter('${c.replace(/'/g,"\\'")}')`)).join('')}
-    </div>
+    ${CollectionPills()}
     <div class="stock-grid">
       ${list.map(a => `
         <div class="stock-card">
-          ${PhotoSafe(a.photo, a.nom, 64, 12)}
-          <div style="flex:1;min-width:0;">
-            <div class="stock-name">${escapeHtml(a.nom)}</div>
-            <div class="stock-meta">${escapeHtml(a.couleur||'')} · ${escapeHtml(a.taille||'')}</div>
-            <div class="stock-bottom">
+          <div class="stock-top">
+            ${PhotoSafe(a.photo, a.nom, 64, 12)}
+            <div style="flex:1;min-width:0;">
+              <div class="stock-name">${escapeHtml(a.nom)}</div>
+              <div class="stock-meta">${escapeHtml(a.couleur||'')}</div>
               <span class="price">${euros(a.prix)}</span>
-              <span style="font-size:12px;font-weight:600;color:${a.stock<=a.seuil?'var(--coral-deep)':'var(--sage)'};">${a.stock} en stock</span>
+              <div class="stock-code-row">
+                <img src="${qrUrl(a.code, 40)}" width="40" height="40" alt="QR ${escapeHtml(a.code)}" style="border-radius:4px;" />
+                <span class="stock-code">${escapeHtml(a.code)}</span>
+              </div>
             </div>
-            <div class="stock-actions">
-              <button class="btn btn-outline btn-sm" onclick="openEditForm('${a.id}')">Modifier</button>
-              ${state.confirmDelete===a.id
-                ? `<button class="btn btn-sm" style="background:var(--coral-deep);color:#fff;" onclick="deleteArticle('${a.id}')">Confirmer ?</button>`
-                : `<button class="btn btn-outline btn-sm" style="color:var(--coral-deep);padding:5px 8px;" onclick="askDelete('${a.id}')">${ICONS.trash}</button>`}
-            </div>
+          </div>
+          <div class="variant-rows">
+            ${a.variants.map(v => `
+              <div class="variant-row">
+                <span class="variant-size">${escapeHtml(v.taille)}</span>
+                <button class="mini-btn" onclick="adjustVariantStock('${v.id}',-1)">${ICONS.minus}</button>
+                <span class="variant-stock" style="color:${v.stock<=a.seuil?'var(--coral-deep)':'var(--sage)'};">${v.stock}</span>
+                <button class="mini-btn" onclick="adjustVariantStock('${v.id}',1)">${ICONS.plus}</button>
+              </div>`).join('')}
+          </div>
+          <div class="stock-actions">
+            <button class="btn btn-outline btn-sm" onclick="openEditForm('${a.id}')">Modifier</button>
+            ${state.confirmDelete===a.id
+              ? `<button class="btn btn-sm" style="background:var(--coral-deep);color:#fff;" onclick="deleteArticle('${a.id}')">Confirmer ?</button>`
+              : `<button class="btn btn-outline btn-sm" style="color:var(--coral-deep);padding:5px 8px;" onclick="askDelete('${a.id}')">${ICONS.trash}</button>`}
           </div>
         </div>`).join('')}
     </div>
@@ -452,42 +603,46 @@ function renderStock(){
 }
 
 function renderVente(){
-  const list = filteredArticles();
+  const list = filteredArticles(state.ventesearch);
   const detail = panierDetail();
   const total = panierTotal();
   return `
   <div class="vente-layout" style="margin-top:8px;">
     <div>
-      <div class="pills">
-        ${Pill('Toutes', state.collectionFilter==='Toutes', "setCollectionFilter('Toutes')")}
-        ${COLLECTIONS.map(c => Pill(c, state.collectionFilter===c, `setCollectionFilter('${c.replace(/'/g,"\\'")}')`)).join('')}
+      <div class="toolbar" style="margin-bottom:0;">
+        ${SearchBox('vente-search-input', state.ventesearch, 'onVenteSearchInput', 'Rechercher par nom ou code...')}
       </div>
+      ${CollectionPills()}
       <div class="vente-grid">
         ${list.map(a => `
-          <button class="vente-tile" ${a.stock===0?'disabled':''} onclick="addToPanier('${a.id}')">
-            ${PhotoSafe(a.photo, a.nom, 110, 10)}
+          <div class="vente-tile">
+            ${PhotoSafe(a.photo, a.nom, 130, 10)}
             <div class="vente-tile-name">${escapeHtml(a.nom)}</div>
-            <div class="vente-tile-meta">${escapeHtml(a.couleur||'')} · ${escapeHtml(a.taille||'')}</div>
+            <div class="vente-tile-meta">${escapeHtml(a.couleur||'')}</div>
             <div style="font-weight:700;color:var(--sky-deep);font-size:13px;">${euros(a.prix)}</div>
-            ${a.stock===0 ? '<div style="font-size:11px;color:var(--coral-deep);">Épuisé</div>' : ''}
-          </button>`).join('')}
+            <div class="size-chips">
+              ${a.variants.map(v => `<button class="size-chip" ${v.stock===0?'disabled':''} onclick="addToPanier('${a.id}','${v.taille.replace(/'/g,"\\'")}')">${escapeHtml(v.taille)}</button>`).join('')}
+            </div>
+          </div>`).join('')}
       </div>
+      ${list.length===0 ? '<div class="muted" style="margin-top:20px;">Aucun article ne correspond.</div>' : ''}
     </div>
+
     <div class="panel cart">
       <div class="panel-title">${ICONS.bag} Panier</div>
-      ${detail.length===0 ? '<div class="muted">Clique sur un article pour l&#39;ajouter à la vente.</div>' : ''}
+      ${detail.length===0 ? '<div class="muted">Clique sur une taille pour ajouter un article à la vente.</div>' : ''}
       <div style="margin-bottom:14px;">
         ${detail.map(p => `
           <div class="cart-row">
             ${PhotoSafe(p.article.photo, p.article.nom, 38, 9)}
             <div style="flex:1;min-width:0;">
-              <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.article.nom)}</div>
+              <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.article.nom)} <span class="muted">· ${escapeHtml(p.taille)}</span></div>
               <div style="font-size:11.5px;color:var(--ink-soft);">${euros(p.article.prix)} × ${p.qty}</div>
             </div>
             <div style="display:flex;align-items:center;gap:4px;">
-              <button class="qty-btn" onclick="changeQty('${p.articleId}',-1)">${ICONS.minus}</button>
+              <button class="qty-btn" onclick="changeQty('${p.articleId}','${p.taille.replace(/'/g,"\\'")}',-1)">${ICONS.minus}</button>
               <span style="font-size:13px;font-weight:600;width:16px;text-align:center;display:inline-block;">${p.qty}</span>
-              <button class="qty-btn" onclick="changeQty('${p.articleId}',1)">${ICONS.plus}</button>
+              <button class="qty-btn" onclick="changeQty('${p.articleId}','${p.taille.replace(/'/g,"\\'")}',1)">${ICONS.plus}</button>
             </div>
           </div>`).join('')}
       </div>
@@ -515,7 +670,7 @@ function renderHistorique(){
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);">
           ${v.items.map(it => `
             <div class="vente-detail-row">
-              <span>${it.qty} × ${escapeHtml(it.nom)}</span>
+              <span>${it.qty} × ${escapeHtml(it.nom)}${it.taille ? ' <span class="muted">· '+escapeHtml(it.taille)+'</span>' : ''}</span>
               <span class="muted">${euros(it.prixUnitaire * it.qty)}</span>
             </div>`).join('')}
         </div>
@@ -523,9 +678,26 @@ function renderHistorique(){
   </div>`;
 }
 
+function renderVariantEditor(){
+  return `
+  <div class="variant-editor">
+    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px;">Tailles &amp; stock</div>
+    ${state.formVariants.map(v => `
+      <div class="variant-editor-row">
+        <input class="input taille-input" placeholder="Taille" value="${escapeHtml(v.taille)}" oninput="updateVariantField('${v.key}','taille',this.value)" />
+        <input class="input" type="number" min="0" placeholder="Stock" value="${v.stock}" oninput="updateVariantField('${v.key}','stock',this.value)" />
+        <button type="button" class="mini-btn" style="color:var(--coral-deep);" onclick="removeVariantRow('${v.key}')">${ICONS.x}</button>
+      </div>`).join('')}
+    <div class="add-size-row">
+      <button type="button" class="add-size-btn" onclick="addVariantRow('')">+ Ajouter une taille</button>
+      <button type="button" class="add-size-btn" onclick="addAllStandardSizes()">+ XS → XXL</button>
+    </div>
+  </div>`;
+}
+
 function renderForm(){
   if (!state.showForm) return '';
-  const a = state.editing || { nom:'', collection:COLLECTIONS[0], couleur:'', taille:'', prix:'', stock:'', seuil:3, photo:'' };
+  const a = state.editing || { code: randomCode(), nom:'', collection:COLLECTIONS[0], couleur:'', prix:'', seuil:3, photo:'' };
   return `
   <div class="modal-backdrop" onclick="if(event.target===this) closeForm()">
     <div class="modal">
@@ -543,18 +715,18 @@ function renderForm(){
           </select>
         </label>
         <div class="field-row">
-          <label class="field" style="flex:1;">Couleur<input class="input" name="couleur" value="${escapeHtml(a.couleur)}" placeholder="Sable" /></label>
-          <label class="field" style="flex:1;">Taille<input class="input" name="taille" value="${escapeHtml(a.taille)}" placeholder="M / Unique" /></label>
-        </div>
-        <div class="field-row">
+          <label class="field" style="flex:1;">Couleur<input class="input" name="couleur" value="${escapeHtml(a.couleur||'')}" placeholder="Sable" /></label>
           <label class="field" style="flex:1;">Prix (€)<input class="input" type="number" min="0" step="0.5" name="prix" required value="${a.prix}" /></label>
-          <label class="field" style="flex:1;">Stock<input class="input" type="number" min="0" name="stock" required value="${a.stock}" /></label>
           <label class="field" style="flex:1;">Seuil alerte<input class="input" type="number" min="0" name="seuil" value="${a.seuil}" /></label>
         </div>
         <label class="field">Photo (URL, facultatif)
           <input class="input" name="photo" value="${escapeHtml(a.photo||'')}" placeholder="https://..." />
         </label>
-        <div class="hint">Astuce : utilise un lien d'image (ex. depuis bebeach.fr) plutôt qu'un fichier importé — ça évite de stocker de grosses images.</div>
+        <label class="field">Code (QR / code-barres)
+          <input class="input" name="code" value="${escapeHtml(a.code)}" placeholder="BB-1234" />
+        </label>
+        <div class="hint">Astuce photo : utilise un lien d'image (ex. depuis bebeach.fr) plutôt qu'un fichier importé — ça évite de stocker de grosses images. Le code sert à générer le QR affiché sur la fiche article.</div>
+        ${renderVariantEditor()}
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" style="flex:1;" onclick="closeForm()">Annuler</button>
           <button type="submit" class="btn btn-coral" style="flex:1;" ${state.saving?'disabled':''}>${state.saving ? 'Enregistrement…' : 'Enregistrer'}</button>
