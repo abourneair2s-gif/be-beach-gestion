@@ -305,6 +305,7 @@ let state = {
   panier: [], // {colorId, taille, qty}
   lieuVente: 'Magasin',
   reglements: [{ mode: 'CB', montant: 0 }],
+  reglementModeTouched: false,
   toast: null,
   saleConfirmation: null,
   scanPendingColor: null,
@@ -1042,11 +1043,13 @@ async function adjustVariantStock(variantId, delta){
 function addToPanier(colorId, taille){
   const variant = findVariant(colorId, taille);
   if (!variant) return;
+  const wasEmpty = state.panier.length === 0;
   const existing = state.panier.find(p => p.colorId === colorId && p.taille === taille);
   const currentQty = existing ? existing.qty : 0;
   if (currentQty >= variant.stock) return;
   if (existing) existing.qty += 1;
   else state.panier.push({ colorId, taille, qty: 1 });
+  if (wasEmpty) state.reglementModeTouched = false;
   recalcLastReglement();
   render();
   const cartEl = document.getElementById('cart-panel');
@@ -1085,6 +1088,7 @@ function addReglementLine(){
   const usedModes = new Set(state.reglements.map(r => r.mode));
   const nextMode = MODES_REGLEMENT.find(m => !usedModes.has(m)) || MODES_REGLEMENT[0];
   state.reglements.push({ mode: nextMode, montant: 0 });
+  state.reglementModeTouched = true;
   recalcLastReglement();
   render();
 }
@@ -1094,7 +1098,7 @@ function removeReglementLine(idx){
   recalcLastReglement();
   render();
 }
-function setReglementMode(idx, mode){ state.reglements[idx].mode = mode; render(); }
+function setReglementMode(idx, mode){ state.reglements[idx].mode = mode; state.reglementModeTouched = true; render(); }
 function updateReglementMontant(idx, value){
   state.reglements[idx].montant = value === '' ? '' : parseFloat(value) || 0;
   recalcLastReglement();
@@ -1129,6 +1133,7 @@ async function encaisser(){
     }
     state.panier = [];
     state.reglements = [{ mode:'CB', montant: 0 }];
+    state.reglementModeTouched = false;
     state.selectedClientId = null;
     state.clientPickerQuery = '';
     await loadAll();
@@ -1503,7 +1508,7 @@ function renderVente(){
   const detail = panierDetail();
   const total = panierTotal();
   const remaining = reglementsRemaining();
-  const canEncaisser = detail.length > 0 && Math.abs(remaining) < 0.004 && !state.saving;
+  const canEncaisser = detail.length > 0 && Math.abs(remaining) < 0.004 && !state.saving && state.reglementModeTouched;
   return `
   <div class="vente-layout" style="margin-top:8px;">
     <div>
@@ -1566,6 +1571,7 @@ function renderVente(){
           <span style="font-size:14px;color:var(--ink-soft);">Total</span>
           <span class="cart-total-value">${euros(total)}</span>
         </div>
+        ${(detail.length > 0 && !state.reglementModeTouched) ? `<div style="font-size:12px;color:var(--coral-deep);font-weight:600;margin-bottom:8px;text-align:center;">Confirme le mode de paiement ci-dessus (touche un bouton) pour activer l'encaissement</div>` : ''}
         <button class="btn btn-sage" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;" ${canEncaisser?'':'disabled'} onclick="encaisser()">
           ${state.saving ? 'Enregistrement…' : "Encaisser la vente"}
         </button>
