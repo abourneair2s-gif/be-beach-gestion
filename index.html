@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root{
     --bg:#FBF6EC; --sand:#F0E4CC; --sand-deep:#E4D2A8;
@@ -231,7 +232,8 @@ const ICONS = {
   imageOff: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2l20 20"/><path d="M10.4 4H19a2 2 0 0 1 2 2v12.6"/><path d="M4 6.4V19a2 2 0 0 0 2 2h12.6"/><circle cx="9" cy="9" r="2"/></svg>',
   check: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
   wave: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 15c2 0 2-3 4-3s2 3 4 3 2-3 4-3 2 3 4 3 2-3 4-3"/><path d="M2 20c2 0 2-3 4-3s2 3 4 3 2-3 4-3 2 3 4 3 2-3 4-3"/></svg>',
-  cash: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 6v0M18 18v0"/></svg>'
+  cash: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 6v0M18 18v0"/></svg>',
+  camera: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>'
 };
 
 function euros(n){
@@ -558,6 +560,82 @@ function findVariant(articleId, taille){
   const a = state.articles.find(x => x.id === articleId);
   return a ? a.variants.find(v => v.taille === taille) : null;
 }
+// ---------- Scan to add (camera QR/barcode + hardware scanner input) ----------
+function lookupAndAddByCode(code){
+  const trimmed = (code || '').trim();
+  if (!trimmed) return;
+  const article = state.articles.find(a => (a.code||'').toLowerCase() === trimmed.toLowerCase());
+  if (!article){
+    showToast(`Aucun article trouvé pour le code "${trimmed}"`, 'error');
+    return;
+  }
+  const inStock = article.variants.filter(v => v.stock > 0);
+  if (article.variants.length === 1){
+    addToPanier(article.id, article.variants[0].taille);
+    showToast(`Ajouté au panier : ${article.nom}`, 'success');
+  } else if (inStock.length === 1){
+    addToPanier(article.id, inStock[0].taille);
+    showToast(`Ajouté au panier : ${article.nom} (${inStock[0].taille})`, 'success');
+  } else if (inStock.length === 0){
+    showToast(`"${article.nom}" est en rupture de stock sur toutes les tailles`, 'error');
+  } else {
+    state.ventesearch = article.nom;
+    state.collectionFilter = 'Toutes';
+    render();
+    showToast(`Plusieurs tailles dispo pour "${article.nom}" — choisis la taille ci-dessous`, 'success');
+  }
+}
+function onScanInputKeydown(e){
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    lookupAndAddByCode(e.target.value);
+    e.target.value = '';
+  }
+}
+
+let html5QrCodeInstance = null;
+function openScanner(){
+  if (typeof Html5Qrcode === 'undefined'){
+    showToast('Le scanner ne peut pas se charger (connexion internet nécessaire).', 'error');
+    return;
+  }
+  const overlay = document.createElement('div');
+  overlay.id = 'scanner-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML = `
+    <div style="background:#FFFDF8;border-radius:16px;padding:16px;max-width:420px;width:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-family:'Fraunces',serif;font-weight:600;color:#3B362C;">Scanner un article</div>
+        <button id="scanner-close-btn" style="background:none;border:none;font-size:22px;cursor:pointer;color:#3B362C;line-height:1;">×</button>
+      </div>
+      <div id="qr-reader" style="width:100%;"></div>
+      <div style="font-size:12px;color:#7A7362;margin-top:8px;">Vise le QR code (ou code-barres) de l'article avec la caméra.</div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('scanner-close-btn').onclick = closeScannerUI;
+
+  html5QrCodeInstance = new Html5Qrcode('qr-reader');
+  html5QrCodeInstance.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 230, height: 230 } },
+    (decodedText) => { lookupAndAddByCode(decodedText); closeScannerUI(); },
+    () => { /* per-frame no-match, ignore */ }
+  ).catch((err) => {
+    showToast("Impossible d'accéder à la caméra : vérifie les autorisations du navigateur.", 'error');
+    closeScannerUI();
+    console.error(err);
+  });
+}
+function closeScannerUI(){
+  const overlay = document.getElementById('scanner-overlay');
+  const inst = html5QrCodeInstance;
+  html5QrCodeInstance = null;
+  if (inst){
+    inst.stop().then(() => inst.clear()).catch(() => {});
+  }
+  if (overlay) overlay.remove();
+}
+
 function addToPanier(articleId, taille){
   const variant = findVariant(articleId, taille);
   if (!variant) return;
@@ -882,6 +960,12 @@ function renderVente(){
           <div class="sale-confirm-detail">${escapeHtml(state.saleConfirmation.detail)}</div>
         </div>
       ` : `
+        <div class="field" style="margin-bottom:14px;">Scanner un article
+          <div style="display:flex;gap:6px;">
+            <input id="scan-code-input" class="input" placeholder="Scanner (douchette) ou saisir un code, puis Entrée" onkeydown="onScanInputKeydown(event)" />
+            <button type="button" class="btn btn-outline" style="padding:0 14px;flex-shrink:0;" onclick="openScanner()" title="Scanner avec la caméra">${ICONS.camera}</button>
+          </div>
+        </div>
         ${renderLieuPicker()}
         ${detail.length===0 ? '<div class="muted">Clique sur une taille pour ajouter un article à la vente.</div>' : ''}
         <div style="margin-bottom:14px;">
