@@ -581,13 +581,39 @@ function onClientPickerInput(e){ state.clientPickerQuery = e.target.value; rende
 function clientLabel(c){ return `${c.prenom||''} ${c.nom||''}`.trim() || c.email || c.telephone || 'Client'; }
 function findClientById(id){ return id ? state.clients.find(c => c.id === id) : null; }
 
-function renderClientPicker(){
-  const selected = findClientById(state.selectedClientId);
-  const q = (state.clientPickerQuery||'').trim().toLowerCase();
-  const matches = q ? state.clients.filter(c =>
+function computeClientMatches(q){
+  q = (q||'').trim().toLowerCase();
+  if (!q) return [];
+  return state.clients.filter(c =>
     (c.nom||'').toLowerCase().includes(q) || (c.prenom||'').toLowerCase().includes(q) ||
     (c.email||'').toLowerCase().includes(q) || (c.telephone||'').toLowerCase().includes(q)
-  ).slice(0, 6) : [];
+  ).slice(0, 6);
+}
+function clientMatchesHtml(q){
+  const matches = computeClientMatches(q);
+  if (matches.length > 0){
+    return `<div style="border:1px solid var(--line);border-radius:10px;margin-top:4px;overflow:hidden;">
+      ${matches.map(c => `
+        <div onclick="setSelectedClient('${c.id}')" style="padding:8px 10px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);">
+          <div style="font-weight:600;">${escapeHtml(clientLabel(c))}</div>
+          <div class="muted" style="font-size:11.5px;">${escapeHtml(c.email||c.telephone||'')}</div>
+        </div>`).join('')}
+    </div>`;
+  }
+  return q.trim() ? `<div class="muted" style="font-size:12px;margin-top:4px;">Aucun client trouvé pour "${escapeHtml(q.trim())}".</div>` : '';
+}
+function onClientPickerInput(e){
+  // Update the results list directly (without calling render()) so the input
+  // element itself is never recreated — recreating it resets the on-screen
+  // keyboard to its default layout on mobile, which is what caused the
+  // numeric keypad to keep flipping back to letters after each digit.
+  state.clientPickerQuery = e.target.value;
+  const resultsEl = document.getElementById('client-picker-results');
+  if (resultsEl) resultsEl.innerHTML = clientMatchesHtml(state.clientPickerQuery);
+}
+
+function renderClientPicker(){
+  const selected = findClientById(state.selectedClientId);
 
   return `
   <div class="field" style="margin-bottom:14px;">
@@ -603,18 +629,10 @@ function renderClientPicker(){
       </div>
     ` : `
       <input id="client-picker-input" class="input" placeholder="Chercher un client (nom, email, tél.)..." value="${escapeHtml(state.clientPickerQuery)}" oninput="onClientPickerInput(event)" />
-      ${matches.length > 0 ? `
-        <div style="border:1px solid var(--line);border-radius:10px;margin-top:4px;overflow:hidden;">
-          ${matches.map(c => `
-            <div onclick="setSelectedClient('${c.id}')" style="padding:8px 10px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);">
-              <div style="font-weight:600;">${escapeHtml(clientLabel(c))}</div>
-              <div class="muted" style="font-size:11.5px;">${escapeHtml(c.email||c.telephone||'')}</div>
-            </div>`).join('')}
-        </div>` : (q ? `<div class="muted" style="font-size:12px;margin-top:4px;">Aucun client trouvé pour "${escapeHtml(q)}".</div>` : '')}
+      <div id="client-picker-results">${clientMatchesHtml(state.clientPickerQuery)}</div>
     `}
   </div>`;
 }
-
 function renderAlphabetTabs(){
   const available = clientLettersAvailable();
   const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
