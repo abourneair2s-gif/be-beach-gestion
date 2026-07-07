@@ -484,6 +484,8 @@ async function saveClientForm(e){
     nom: f.nom.value.trim(),
     prenom: f.prenom.value.trim(),
     adresse: f.adresse.value.trim(),
+    code_postal: f.code_postal.value.trim(),
+    ville: f.ville.value.trim(),
     telephone: f.telephone.value.trim(),
     email: f.email.value.trim(),
   };
@@ -521,10 +523,11 @@ function exportClientsExcel(){
   if (state.clients.length === 0){ showToast('Aucun client à exporter.', 'error'); return; }
   const data = state.clients.map(c => ({
     'Nom': c.nom || '', 'Prénom': c.prenom || '', 'Adresse': c.adresse || '',
+    'Code postal': c.code_postal || '', 'Ville': c.ville || '',
     'Téléphone': c.telephone || '', 'Email': c.email || '',
   }));
   const ws = XLSX.utils.json_to_sheet(data);
-  ws['!cols'] = [{wch:16},{wch:14},{wch:35},{wch:16},{wch:26}];
+  ws['!cols'] = [{wch:16},{wch:14},{wch:30},{wch:10},{wch:18},{wch:16},{wch:26}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Clients');
   XLSX.writeFile(wb, 'clients-bebeach.xlsx');
@@ -611,7 +614,7 @@ function renderClients(){
               <div class="stock-name">${escapeHtml(clientLabel(c))}</div>
               ${c.email ? `<div class="stock-meta">${ICONS.mail} ${escapeHtml(c.email)}</div>` : ''}
               ${c.telephone ? `<div class="stock-meta">${escapeHtml(c.telephone)}</div>` : ''}
-              ${c.adresse ? `<div class="muted" style="font-size:11.5px;margin-top:4px;">${escapeHtml(c.adresse)}</div>` : ''}
+              ${(c.adresse || c.code_postal || c.ville) ? `<div class="muted" style="font-size:11.5px;margin-top:4px;">${escapeHtml(c.adresse||'')}${c.adresse && (c.code_postal||c.ville) ? ', ' : ''}${escapeHtml([c.code_postal, c.ville].filter(Boolean).join(' '))}</div>` : ''}
             </div>
           </div>
           <div class="stock-actions">
@@ -628,7 +631,7 @@ function renderClients(){
 
 function renderClientForm(){
   if (!state.showClientForm) return '';
-  const c = state.editingClient || { nom:'', prenom:'', adresse:'', telephone:'', email:'' };
+  const c = state.editingClient || { nom:'', prenom:'', adresse:'', code_postal:'', ville:'', telephone:'', email:'' };
   return `
   <div class="modal-backdrop" onclick="if(event.target===this) closeClientForm()">
     <div class="modal" style="max-width:420px;">
@@ -646,8 +649,16 @@ function renderClientForm(){
           </label>
         </div>
         <label class="field">Adresse
-          <input class="input" name="adresse" value="${escapeHtml(c.adresse||'')}" placeholder="Rue, code postal, ville" />
+          <input class="input" name="adresse" value="${escapeHtml(c.adresse||'')}" placeholder="N° et nom de rue" />
         </label>
+        <div class="field-row">
+          <label class="field" style="flex:1;">Code postal
+            <input class="input" name="code_postal" value="${escapeHtml(c.code_postal||'')}" placeholder="44500" />
+          </label>
+          <label class="field" style="flex:2;">Ville
+            <input class="input" name="ville" value="${escapeHtml(c.ville||'')}" placeholder="Saint-Nazaire" />
+          </label>
+        </div>
         <div class="field-row">
           <label class="field" style="flex:1;">Téléphone
             <input class="input" name="telephone" value="${escapeHtml(c.telephone||'')}" placeholder="06 12 34 56 78" />
