@@ -502,7 +502,7 @@ async function saveClientForm(e){
     adresse: f.adresse.value.trim(),
     code_postal: f.code_postal.value.trim(),
     ville: f.ville.value.trim(),
-    telephone: f.telephone.value.trim(),
+    telephone: f.telephone.value.trim().replace(/\s+/g, ''),
     email: f.email.value.trim(),
   };
   if (!payload.nom){ return; }
