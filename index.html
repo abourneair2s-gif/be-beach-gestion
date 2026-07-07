@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+<title>Be Beach · Gestion boutique</title>
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#8FB9C7" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root{
+    --bg:#FBF6EC; --sand:#F0E4CC; --sand-deep:#E4D2A8;
+    --sky:#8FB9C7; --sky-deep:#5F93A4;
+    --coral:#E4886B; --coral-deep:#D3714F;
+    --sage:#93A583; --ink:#3B362C; --ink-soft:#7A7362;
+    --card:#FFFDF8; --line:#E9DFC7;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'DM Sans','Inter',sans-serif;background:var(--bg);color:var(--ink);}
+  .serif{font-family:'Fraunces',serif;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--sand-deep);border-radius:8px;}
+  button{font-family:inherit;}
+  input, select{font-family:inherit;}
+  a{color:inherit;}
+
+  .header{position:relative;background:linear-gradient(120deg,var(--sky),var(--sky-deep));padding:22px 24px 40px;}
+  .header-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
+  .logo{display:flex;align-items:center;gap:8px;}
+  .logo-badge{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--sky),var(--coral));display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .logo-name{font-family:'Fraunces',serif;font-weight:600;font-size:17px;color:var(--ink);}
+  .logo-sub{font-size:10px;letter-spacing:1px;color:var(--ink-soft);text-transform:uppercase;}
+  .nav{display:flex;gap:8px;flex-wrap:wrap;}
+  .nav-btn{display:flex;align-items:center;gap:7px;padding:9px 15px;border-radius:999px;border:none;background:rgba(255,255,255,0.18);color:#fff;font-weight:600;font-size:13.5px;cursor:pointer;}
+  .nav-btn.active{background:#fff;color:var(--sky-deep);}
+  .wave{position:absolute;bottom:-1px;left:0;width:100%;height:40px;display:block;}
+
+  .container{padding:0 24px 40px;max-width:1080px;margin:0 auto;}
+  .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:22px;}
+  .stat-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px 20px;flex:1 1 180px;min-width:160px;}
+  .stat-label{font-size:12px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;}
+  .stat-value{font-family:'Fraunces',serif;font-size:28px;font-weight:600;}
+  .stat-sub{font-size:12px;color:var(--ink-soft);margin-top:4px;}
+
+  .grid2{display:grid;grid-template-columns:1.2fr 1fr;gap:18px;}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;}
+  .panel-title{font-family:'Fraunces',serif;font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+  .muted{color:var(--ink-soft);font-size:13.5px;}
+  .sale-row{display:flex;justify-content:space-between;font-size:13.5px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:10px;}
+  .lowstock-row{display:flex;align-items:center;gap:10px;font-size:13.5px;margin-bottom:10px;}
+
+  .thumb{border-radius:12px;object-fit:cover;background:var(--sand);flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+  .thumb-fallback{background:var(--sand);display:flex;align-items:center;justify-content:center;color:var(--ink-soft);}
+
+  .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+  .search-wrap{position:relative;flex:1 1 220px;max-width:320px;}
+  .search-wrap svg{position:absolute;left:12px;top:11px;}
+  .input, select.input{border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:14px;color:var(--ink);background:#fff;outline:none;width:100%;}
+  .btn{border:none;border-radius:12px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;}
+  .btn-coral{background:var(--coral);color:#fff;}
+  .btn-sage{background:var(--sage);color:#fff;}
+  .btn-outline{background:#fff;border:1px solid var(--line);color:var(--ink);}
+  .btn:disabled{background:var(--sand-deep);cursor:not-allowed;}
+
+  .pills{display:flex;gap:8px;overflow-x:auto;padding-bottom:14px;}
+  .pill{padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;}
+  .pill.active{background:var(--sky);border-color:var(--sky-deep);color:#fff;}
+
+  .stock-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;}
+  .stock-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;gap:12px;}
+  .stock-name{font-weight:600;font-size:14px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .stock-meta{font-size:12px;color:var(--ink-soft);margin-bottom:6px;}
+  .stock-bottom{display:flex;justify-content:space-between;align-items:center;}
+  .price{font-weight:700;color:var(--sky-deep);}
+  .stock-actions{display:flex;gap:8px;margin-top:8px;}
+  .btn-sm{padding:5px 10px;font-size:12px;border-radius:10px;}
+
+  .vente-layout{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;align-items:start;}
+  .vente-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
+  .vente-tile{text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;cursor:pointer;}
+  .vente-tile:disabled{opacity:0.5;cursor:not-allowed;}
+  .vente-tile-name{font-size:12.5px;font-weight:600;margin-top:8px;line-height:1.2;}
+  .vente-tile-meta{font-size:11.5px;color:var(--ink-soft);margin:2px 0;}
+
+  .cart{position:sticky;top:16px;}
+  .cart-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .qty-btn{width:22px;height:22px;border-radius:50%;border:1px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;}
+  .cart-total{border-top:1px solid var(--line);padding-top:12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .cart-total-value{font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--coral-deep);}
+
+  details{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:10px;}
+  summary{display:flex;justify-content:space-between;cursor:pointer;font-size:13.5px;list-style:none;}
+  summary::-webkit-details-marker{display:none;}
+  .vente-detail-row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;}
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(59,54,44,0.35);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .modal{background:var(--card);border-radius:20px;padding:24px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto;}
+  .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+  .modal-close{background:none;border:none;cursor:pointer;color:var(--ink-soft);}
+  .field{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--ink-soft);margin-bottom:12px;}
+  .field-row{display:flex;gap:10px;}
+  .hint{font-size:11.5px;color:var(--ink-soft);margin-top:-6px;margin-bottom:12px;}
+  .modal-actions{display:flex;gap:10px;margin-top:8px;}
+
+  .loading-screen{display:flex;align-items:center;justify-content:center;height:100vh;color:var(--ink-soft);font-size:14px;}
+
+  @media (max-width: 720px){
+    .grid2, .vente-layout{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading-screen">Chargement de la boutique…</div></div>
+
+<script>
+// ---------- Config ----------
+const SUPABASE_URL = 'https://kjklvcfoklnyjfwbdfqe.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_iMTMuEGzCBXtGfhQkPWSrw_3AsYC84Y';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const COLLECTIONS = ["T-shirts","Hoodies","Vestes zippées","Casquettes et bonnets","Sacs","Porte-clés motel","Pin's émaillés","Stickers"];
+
+const ICONS = {
+  home: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9"/><path d="M5 10v10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-4h2v4a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V10"/></svg>',
+  package: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3.3 7.6l8.7 4.7 8.7-4.7"/><path d="M12 22V12"/></svg>',
+  bag: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2l1.5 4h9L18 2"/><path d="M4 6h16l-1.4 13.2a2 2 0 0 1-2 1.8H7.4a2 2 0 0 1-2-1.8L4 6z"/></svg>',
+  history: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 3"/></svg>',
+  plus: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  minus: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg>',
+  trash: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>',
+  search: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>',
+  alert: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+  x: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+  imageOff: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2l20 20"/><path d="M10.4 4H19a2 2 0 0 1 2 2v12.6"/><path d="M4 6.4V19a2 2 0 0 0 2 2h12.6"/><circle cx="9" cy="9" r="2"/></svg>',
+  check: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
+  wave: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 15c2 0 2-3 4-3s2 3 4 3 2-3 4-3 2 3 4 3 2-3 4-3"/><path d="M2 20c2 0 2-3 4-3s2 3 4 3 2-3 4-3 2 3 4 3 2-3 4-3"/></svg>'
+};
+
+// ---------- State ----------
+let state = {
+  tab: 'dashboard',
+  articles: [],
+  ventes: [],
+  loading: true,
+  error: null,
+  collectionFilter: 'Toutes',
+  search: '',
+  panier: [], // {articleId, qty}
+  showForm: false,
+  editing: null,
+  confirmDelete: null,
+  justSold: false,
+  saving: false,
+};
+
+function euros(n){
+  return (Number(n)||0).toLocaleString('fr-FR', { style:'currency', currency:'EUR' });
+}
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------- Data loading ----------
+async function loadAll(){
+  state.loading = true; render();
+  try{
+    const [{ data: articles, error: e1 }, { data: ventes, error: e2 }] = await Promise.all([
+      sb.from('articles').select('*').order('created_at', { ascending: false }),
+      sb.from('ventes').select('*').order('date', { ascending: false }).limit(200)
+    ]);
+    if (e1) throw e1;
+    if (e2) throw e2;
+    state.articles = articles || [];
+    state.ventes = ventes || [];
+    state.error = null;
+  } catch(err){
+    console.error(err);
+    state.error = "Impossible de charger les données depuis Supabase. Vérifie la connexion.";
+  }
+  state.loading = false;
+  render();
+}
+
+// ---------- Actions ----------
+function setTab(t){ state.tab = t; state.confirmDelete = null; render(); }
+function setCollectionFilter(c){ state.collectionFilter = c; render(); }
+function openAddForm(){ state.editing = null; state.showForm = true; render(); }
+function openEditForm(id){ state.editing = state.articles.find(a => a.id === id) || null; state.showForm = true; render(); }
+function closeForm(){ state.showForm = false; state.editing = null; render(); }
+
+async function saveArticleForm(e){
+  e.preventDefault();
+  const f = e.target;
+  const payload = {
+    nom: f.nom.value.trim(),
+    collection: f.collection.value,
+    couleur: f.couleur.value.trim(),
+    taille: f.taille.value.trim(),
+    prix: parseFloat(f.prix.value) || 0,
+    stock: parseInt(f.stock.value) || 0,
+    seuil: parseInt(f.seuil.value) || 0,
+    photo: f.photo.value.trim(),
+  };
+  if (!payload.nom) return;
+  state.saving = true; render();
+  try{
+    if (state.editing){
+      const { error } = await sb.from('articles').update(payload).eq('id', state.editing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await sb.from('articles').insert(payload);
+      if (error) throw error;
+    }
+    state.showForm = false;
+    state.editing = null;
+    await loadAll();
+  } catch(err){
+    console.error(err);
+    alert("Erreur lors de l'enregistrement : " + err.message);
+  }
+  state.saving = false;
+  render();
+}
+
+function askDelete(id){ state.confirmDelete = id; render(); }
+async function deleteArticle(id){
+  try{
+    const { error } = await sb.from('articles').delete().eq('id', id);
+    if (error) throw error;
+    state.panier = state.panier.filter(p => p.articleId !== id);
+    await loadAll();
+  } catch(err){
+    alert("Erreur lors de la suppression : " + err.message);
+  }
+  state.confirmDelete = null;
+  render();
+}
+
+function addToPanier(id){
+  const article = state.articles.find(a => a.id === id);
+  if (!article) return;
+  const existing = state.panier.find(p => p.articleId === id);
+  const currentQty = existing ? existing.qty : 0;
+  if (currentQty >= article.stock) return;
+  if (existing) existing.qty += 1;
+  else state.panier.push({ articleId: id, qty: 1 });
+  render();
+}
+function changeQty(id, delta){
+  const article = state.articles.find(a => a.id === id);
+  const p = state.panier.find(x => x.articleId === id);
+  if (!p) return;
+  p.qty = Math.min(article.stock, Math.max(0, p.qty + delta));
+  state.panier = state.panier.filter(x => x.qty > 0);
+  render();
+}
+
+function panierDetail(){
+  return state.panier.map(p => ({ ...p, article: state.articles.find(a => a.id === p.articleId) })).filter(p => p.article);
+}
+function panierTotal(){
+  return panierDetail().reduce((s,p) => s + p.article.prix * p.qty, 0);
+}
+
+async function encaisser(){
+  const detail = panierDetail();
+  if (detail.length === 0) return;
+  const total = panierTotal();
+  const items = detail.map(p => ({ nom: p.article.nom, qty: p.qty, prixUnitaire: p.article.prix }));
+  state.saving = true; render();
+  try{
+    const { error: e1 } = await sb.from('ventes').insert({ date: new Date().toISOString(), items, total });
+    if (e1) throw e1;
+    for (const p of detail){
+      const { error: e2 } = await sb.from('articles').update({ stock: p.article.stock - p.qty }).eq('id', p.articleId);
+      if (e2) throw e2;
+    }
+    state.panier = [];
+    state.justSold = true;
+    await loadAll();
+    setTimeout(() => { state.justSold = false; render(); }, 2200);
+  } catch(err){
+    console.error(err);
+    alert("Erreur lors de l'encaissement : " + err.message);
+  }
+  state.saving = false;
+  render();
+}
+
+function onSearchInput(e){
+  state.search = e.target.value;
+  const active = document.activeElement;
+  const pos = active && active.selectionStart;
+  render();
+  const el = document.getElementById('search-input');
+  if (el){ el.focus(); if (pos != null) el.setSelectionRange(pos,pos); }
+}
+
+// ---------- Rendering helpers ----------
+function PhotoSafe(photo, alt, size, radius){
+  radius = radius || 12;
+  const style = `width:${size}px;height:${size}px;border-radius:${radius}px;`;
+  if (!photo){
+    return `<div class="thumb thumb-fallback" style="${style}">${ICONS.imageOff}</div>`;
+  }
+  return `<img class="thumb" src="${escapeHtml(photo)}" alt="${escapeHtml(alt)}" style="${style}" />`;
+}
+// Delegated fallback: if a .thumb <img> fails to load, swap it for the placeholder icon.
+// 'error' events don't bubble, so this listener uses the capture phase.
+document.addEventListener('error', function(e){
+  const img = e.target;
+  if (img && img.tagName === 'IMG' && img.classList && img.classList.contains('thumb')){
+    const div = document.createElement('div');
+    div.className = 'thumb thumb-fallback';
+    div.style.cssText = img.style.cssText;
+    div.innerHTML = ICONS.imageOff;
+    img.replaceWith(div);
+  }
+}, true);
+
+function Pill(label, active, onclick){
+  return `<button class="pill ${active ? 'active' : ''}" onclick="${onclick}">${escapeHtml(label)}</button>`;
+}
+
+function filteredArticles(){
+  return state.articles.filter(a => {
+    const matchCol = state.collectionFilter === 'Toutes' || a.collection === state.collectionFilter;
+    const matchSearch = a.nom.toLowerCase().includes(state.search.toLowerCase());
+    return matchCol && matchSearch;
+  });
+}
+
+// ---------- Views ----------
+function renderHeader(){
+  const NAV = [
+    { id:'dashboard', label:'Tableau de bord', icon: ICONS.home },
+    { id:'stock', label:'Stock', icon: ICONS.package },
+    { id:'vente', label:'Vente', icon: ICONS.bag },
+    { id:'historique', label:'Historique', icon: ICONS.history },
+  ];
+  return `
+  <div class="header">
+    <div class="header-row">
+      <div class="logo">
+        <div class="logo-badge">${ICONS.wave}</div>
+        <div>
+          <div class="logo-name">Be beach</div>
+          <div class="logo-sub">Gestion boutique</div>
+        </div>
+      </div>
+      <div class="nav">
+        ${NAV.map(n => `<button class="nav-btn ${state.tab===n.id?'active':''}" onclick="setTab('${n.id}')">${n.icon}${n.label}</button>`).join('')}
+      </div>
+    </div>
+    <svg class="wave" viewBox="0 0 1440 60" preserveAspectRatio="none"><path d="M0,30 C240,60 480,0 720,20 C960,40 1200,10 1440,30 L1440,60 L0,60 Z" fill="var(--bg)"/></svg>
+  </div>`;
+}
+
+function renderDashboard(){
+  const stockValue = state.articles.reduce((s,a) => s + a.prix * a.stock, 0);
+  const totalCA = state.ventes.reduce((s,v) => s + Number(v.total), 0);
+  const lowStock = state.articles.filter(a => a.stock <= a.seuil);
+  const today = new Date().toDateString();
+  const ventesAuj = state.ventes.filter(v => new Date(v.date).toDateString() === today);
+  const totalStockCount = state.articles.reduce((s,a) => s + a.stock, 0);
+
+  return `
+  <div style="margin-top:8px;">
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-label">Chiffre d'affaires</div>
+        <div class="stat-value" style="color:var(--coral-deep);">${euros(totalCA)}</div>
+        <div class="stat-sub">${state.ventes.length} vente${state.ventes.length>1?'s':''} enregistrée${state.ventes.length>1?'s':''}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Ventes aujourd'hui</div>
+        <div class="stat-value" style="color:var(--sky-deep);">${ventesAuj.length}</div>
+        <div class="stat-sub">${euros(ventesAuj.reduce((s,v)=>s+Number(v.total),0))}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Valeur du stock</div>
+        <div class="stat-value">${euros(stockValue)}</div>
+        <div class="stat-sub">${totalStockCount} articles en boutique</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Alertes stock bas</div>
+        <div class="stat-value" style="color:${lowStock.length?'var(--coral-deep)':'var(--sage)'};">${lowStock.length}</div>
+        <div class="stat-sub">${lowStock.length ? 'à réapprovisionner' : 'tout va bien'}</div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-title">Dernières ventes</div>
+        ${state.ventes.length===0 ? '<div class="muted">Aucune vente pour le moment.</div>' : state.ventes.slice(0,5).map(v => `
+          <div class="sale-row">
+            <span class="muted">${new Date(v.date).toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})} · ${v.items.reduce((s,i)=>s+i.qty,0)} art.</span>
+            <span style="font-weight:600;">${euros(v.total)}</span>
+          </div>`).join('')}
+      </div>
+      <div class="panel">
+        <div class="panel-title">${ICONS.alert} Stock bas</div>
+        ${lowStock.length===0 ? '<div class="muted">Aucune alerte, tout est bien approvisionné.</div>' : lowStock.map(a => `
+          <div class="lowstock-row">
+            ${PhotoSafe(a.photo, a.nom, 34, 8)}
+            <div style="flex:1;">${escapeHtml(a.nom)}</div>
+            <span style="color:var(--coral-deep);font-weight:700;">${a.stock} restant${a.stock>1?'s':''}</span>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderStock(){
+  const list = filteredArticles();
+  return `
+  <div style="margin-top:8px;">
+    <div class="toolbar">
+      <div class="search-wrap">
+        ${ICONS.search}
+        <input id="search-input" class="input" style="padding-left:32px;" placeholder="Rechercher un article..." value="${escapeHtml(state.search)}" oninput="onSearchInput(event)" />
+      </div>
+      <button class="btn btn-coral" onclick="openAddForm()" style="display:flex;align-items:center;gap:6px;">${ICONS.plus} Ajouter un article</button>
+    </div>
+    <div class="pills">
+      ${Pill('Toutes', state.collectionFilter==='Toutes', "setCollectionFilter('Toutes')")}
+      ${COLLECTIONS.map(c => Pill(c, state.collectionFilter===c, `setCollectionFilter('${c.replace(/'/g,"\\'")}')`)).join('')}
+    </div>
+    <div class="stock-grid">
+      ${list.map(a => `
+        <div class="stock-card">
+          ${PhotoSafe(a.photo, a.nom, 64, 12)}
+          <div style="flex:1;min-width:0;">
+            <div class="stock-name">${escapeHtml(a.nom)}</div>
+            <div class="stock-meta">${escapeHtml(a.couleur||'')} · ${escapeHtml(a.taille||'')}</div>
+            <div class="stock-bottom">
+              <span class="price">${euros(a.prix)}</span>
+              <span style="font-size:12px;font-weight:600;color:${a.stock<=a.seuil?'var(--coral-deep)':'var(--sage)'};">${a.stock} en stock</span>
+            </div>
+            <div class="stock-actions">
+              <button class="btn btn-outline btn-sm" onclick="openEditForm('${a.id}')">Modifier</button>
+              ${state.confirmDelete===a.id
+                ? `<button class="btn btn-sm" style="background:var(--coral-deep);color:#fff;" onclick="deleteArticle('${a.id}')">Confirmer ?</button>`
+                : `<button class="btn btn-outline btn-sm" style="color:var(--coral-deep);padding:5px 8px;" onclick="askDelete('${a.id}')">${ICONS.trash}</button>`}
+            </div>
+          </div>
+        </div>`).join('')}
+    </div>
+    ${list.length===0 ? '<div class="muted" style="margin-top:20px;">Aucun article ne correspond.</div>' : ''}
+  </div>`;
+}
+
+function renderVente(){
+  const list = filteredArticles();
+  const detail = panierDetail();
+  const total = panierTotal();
+  return `
+  <div class="vente-layout" style="margin-top:8px;">
+    <div>
+      <div class="pills">
+        ${Pill('Toutes', state.collectionFilter==='Toutes', "setCollectionFilter('Toutes')")}
+        ${COLLECTIONS.map(c => Pill(c, state.collectionFilter===c, `setCollectionFilter('${c.replace(/'/g,"\\'")}')`)).join('')}
+      </div>
+      <div class="vente-grid">
+        ${list.map(a => `
+          <button class="vente-tile" ${a.stock===0?'disabled':''} onclick="addToPanier('${a.id}')">
+            ${PhotoSafe(a.photo, a.nom, 110, 10)}
+            <div class="vente-tile-name">${escapeHtml(a.nom)}</div>
+            <div class="vente-tile-meta">${escapeHtml(a.couleur||'')} · ${escapeHtml(a.taille||'')}</div>
+            <div style="font-weight:700;color:var(--sky-deep);font-size:13px;">${euros(a.prix)}</div>
+            ${a.stock===0 ? '<div style="font-size:11px;color:var(--coral-deep);">Épuisé</div>' : ''}
+          </button>`).join('')}
+      </div>
+    </div>
+    <div class="panel cart">
+      <div class="panel-title">${ICONS.bag} Panier</div>
+      ${detail.length===0 ? '<div class="muted">Clique sur un article pour l&#39;ajouter à la vente.</div>' : ''}
+      <div style="margin-bottom:14px;">
+        ${detail.map(p => `
+          <div class="cart-row">
+            ${PhotoSafe(p.article.photo, p.article.nom, 38, 9)}
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.article.nom)}</div>
+              <div style="font-size:11.5px;color:var(--ink-soft);">${euros(p.article.prix)} × ${p.qty}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <button class="qty-btn" onclick="changeQty('${p.articleId}',-1)">${ICONS.minus}</button>
+              <span style="font-size:13px;font-weight:600;width:16px;text-align:center;display:inline-block;">${p.qty}</span>
+              <button class="qty-btn" onclick="changeQty('${p.articleId}',1)">${ICONS.plus}</button>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="cart-total">
+        <span style="font-size:14px;color:var(--ink-soft);">Total</span>
+        <span class="cart-total-value">${euros(total)}</span>
+      </div>
+      <button class="btn btn-sage" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;" ${detail.length===0||state.saving?'disabled':''} onclick="encaisser()">
+        ${state.justSold ? ICONS.check + ' Vente enregistrée' : (state.saving ? 'Enregistrement…' : "Encaisser la vente")}
+      </button>
+    </div>
+  </div>`;
+}
+
+function renderHistorique(){
+  if (state.ventes.length===0) return '<div class="muted" style="margin-top:8px;">Aucune vente enregistrée pour le moment.</div>';
+  return `
+  <div style="margin-top:8px;">
+    ${state.ventes.map(v => `
+      <details>
+        <summary>
+          <span class="muted">${new Date(v.date).toLocaleString('fr-FR',{dateStyle:'medium',timeStyle:'short'})}</span>
+          <span style="font-weight:700;">${euros(v.total)}</span>
+        </summary>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);">
+          ${v.items.map(it => `
+            <div class="vente-detail-row">
+              <span>${it.qty} × ${escapeHtml(it.nom)}</span>
+              <span class="muted">${euros(it.prixUnitaire * it.qty)}</span>
+            </div>`).join('')}
+        </div>
+      </details>`).join('')}
+  </div>`;
+}
+
+function renderForm(){
+  if (!state.showForm) return '';
+  const a = state.editing || { nom:'', collection:COLLECTIONS[0], couleur:'', taille:'', prix:'', stock:'', seuil:3, photo:'' };
+  return `
+  <div class="modal-backdrop" onclick="if(event.target===this) closeForm()">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="serif" style="font-size:19px;font-weight:600;">${state.editing ? "Modifier l'article" : 'Nouvel article'}</div>
+        <button class="modal-close" onclick="closeForm()">${ICONS.x}</button>
+      </div>
+      <form onsubmit="saveArticleForm(event)">
+        <label class="field">Nom de l'article
+          <input class="input" name="nom" required value="${escapeHtml(a.nom)}" placeholder="Ex : T-shirt Vagues" />
+        </label>
+        <label class="field">Collection
+          <select class="input" name="collection">
+            ${COLLECTIONS.map(c => `<option value="${escapeHtml(c)}" ${a.collection===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+        </label>
+        <div class="field-row">
+          <label class="field" style="flex:1;">Couleur<input class="input" name="couleur" value="${escapeHtml(a.couleur)}" placeholder="Sable" /></label>
+          <label class="field" style="flex:1;">Taille<input class="input" name="taille" value="${escapeHtml(a.taille)}" placeholder="M / Unique" /></label>
+        </div>
+        <div class="field-row">
+          <label class="field" style="flex:1;">Prix (€)<input class="input" type="number" min="0" step="0.5" name="prix" required value="${a.prix}" /></label>
+          <label class="field" style="flex:1;">Stock<input class="input" type="number" min="0" name="stock" required value="${a.stock}" /></label>
+          <label class="field" style="flex:1;">Seuil alerte<input class="input" type="number" min="0" name="seuil" value="${a.seuil}" /></label>
+        </div>
+        <label class="field">Photo (URL, facultatif)
+          <input class="input" name="photo" value="${escapeHtml(a.photo||'')}" placeholder="https://..." />
+        </label>
+        <div class="hint">Astuce : utilise un lien d'image (ex. depuis bebeach.fr) plutôt qu'un fichier importé — ça évite de stocker de grosses images.</div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" style="flex:1;" onclick="closeForm()">Annuler</button>
+          <button type="submit" class="btn btn-coral" style="flex:1;" ${state.saving?'disabled':''}>${state.saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+        </div>
+      </form>
+    </div>
+  </div>`;
+}
+
+function render(){
+  const root = document.getElementById('app');
+  if (state.loading && state.articles.length===0){
+    root.innerHTML = '<div class="loading-screen">Chargement de la boutique…</div>';
+    return;
+  }
+  let body = '';
+  if (state.error){
+    body = `<div class="container" style="margin-top:24px;"><div class="panel" style="color:var(--coral-deep);">${escapeHtml(state.error)}</div></div>`;
+  } else {
+    let content = '';
+    if (state.tab==='dashboard') content = renderDashboard();
+    else if (state.tab==='stock') content = renderStock();
+    else if (state.tab==='vente') content = renderVente();
+    else if (state.tab==='historique') content = renderHistorique();
+    body = `<div class="container">${content}</div>`;
+  }
+  root.innerHTML = renderHeader() + body + renderForm();
+}
+
+loadAll();
+</script>
+</body>
+</html>
