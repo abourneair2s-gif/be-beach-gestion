@@ -1,0 +1,9 @@
+{
+  "name": "Be Beach - Gestion boutique",
+  "short_name": "Be Beach",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FBF6EC",
+  "theme_color": "#8FB9C7",
+  "icons": []
+}
