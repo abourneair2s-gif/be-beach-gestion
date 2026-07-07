@@ -141,8 +141,14 @@
   .sale-confirm-title{font-family:'Fraunces',serif;font-size:19px;font-weight:700;color:var(--ink);}
   .sale-confirm-detail{font-size:13px;color:var(--ink-soft);}
 
+  .mini-cart-bar{display:none;}
+
   html{overflow-x:hidden;}
   body{overflow-x:hidden;}
+  /* Flex/grid items default to a content-based minimum width that can silently
+     force horizontal overflow on narrow screens, even with width:100% set.
+     This is the actual root cause of the mobile overflow — fix it globally. */
+  select, input, .field, .vente-layout > *, .grid2 > *, .cart-row, .cart-row > div{ min-width:0; }
 
   @media (max-width: 720px){
     .grid2, .vente-layout{grid-template-columns:1fr;}
@@ -179,6 +185,14 @@
 
     table, .panel{max-width:100%;}
     .sale-row{flex-wrap:wrap;gap:4px;}
+
+    .mini-cart-bar{
+      display:flex;align-items:center;justify-content:center;gap:8px;
+      position:fixed;left:12px;right:12px;bottom:14px;z-index:90;
+      background:var(--sage);color:#fff;border:none;border-radius:999px;
+      padding:13px;font-size:13.5px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,0.25);
+      cursor:pointer;
+    }
   }
 </style>
 </head>
@@ -554,6 +568,8 @@ function addToPanier(articleId, taille){
   else state.panier.push({ articleId, taille, qty: 1 });
   recalcLastReglement();
   render();
+  const cartEl = document.getElementById('cart-panel');
+  if (cartEl && window.innerWidth < 721) cartEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function changeQty(articleId, taille, delta){
   const variant = findVariant(articleId, taille);
@@ -857,7 +873,7 @@ function renderVente(){
       ${list.length===0 ? '<div class="muted" style="margin-top:20px;">Aucun article ne correspond.</div>' : ''}
     </div>
 
-    <div class="panel cart">
+    <div class="panel cart" id="cart-panel">
       <div class="panel-title">${ICONS.bag} Panier</div>
       ${state.saleConfirmation ? `
         <div class="sale-confirm">
@@ -1287,13 +1303,23 @@ function render(){
     else if (state.tab==='historique') content = renderHistorique();
     body = `<div class="container">${content}</div>`;
   }
-  root.innerHTML = renderHeader() + body + renderForm() + renderToast();
+  root.innerHTML = renderHeader() + body + renderForm() + renderToast() + renderMiniCartBar();
 }
 
 function renderToast(){
   if (!state.toast) return '';
   const bg = state.toast.kind === 'error' ? 'var(--coral-deep)' : 'var(--sage)';
   return `<div class="toast" style="background:${bg};">${ICONS.check}<span>${escapeHtml(state.toast.message)}</span></div>`;
+}
+
+function renderMiniCartBar(){
+  if (state.tab !== 'vente') return '';
+  const detail = panierDetail();
+  if (detail.length === 0) return '';
+  const count = detail.reduce((s,p) => s + p.qty, 0);
+  return `<button class="mini-cart-bar" onclick="document.getElementById('cart-panel').scrollIntoView({behavior:'smooth',block:'start'})">
+    ${ICONS.bag} ${count} article${count>1?'s':''} · ${euros(panierTotal())} · voir le panier
+  </button>`;
 }
 
 // ---------- Realtime sync across devices (Mac <-> iPhone) ----------
