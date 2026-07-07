@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#FBF6EC; --sand:#F0E4CC; --sand-deep:#E4D2A8;
@@ -35,7 +36,7 @@
   .header{position:relative;background:linear-gradient(120deg,var(--sky),var(--sky-deep));padding:22px 24px 40px;}
   .header-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
   .logo{display:flex;align-items:center;gap:12px;}
-  .logo-badge{height:52px;padding:6px 14px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+  .logo-badge{height:88px;padding:8px 18px;border-radius:16px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
   .logo-badge img{height:100%;width:auto;display:block;}
   .logo-name{font-family:'Fraunces',serif;font-weight:600;font-size:17px;color:var(--ink);}
   .logo-sub{font-size:10px;letter-spacing:1px;color:var(--ink-soft);text-transform:uppercase;}
@@ -135,6 +136,11 @@
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);color:#fff;padding:12px 20px;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,0.2);display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;z-index:100;max-width:90vw;text-align:center;animation:toast-in 0.2s ease;}
   @keyframes toast-in{from{opacity:0;transform:translate(-50%,10px);}to{opacity:1;transform:translate(-50%,0);}}
 
+  .sale-confirm{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:36px 12px;color:var(--sage);animation:toast-in 0.25s ease;}
+  .sale-confirm svg{width:40px;height:40px;}
+  .sale-confirm-title{font-family:'Fraunces',serif;font-size:19px;font-weight:700;color:var(--ink);}
+  .sale-confirm-detail{font-size:13px;color:var(--ink-soft);}
+
   @media (max-width: 720px){
     .grid2, .vente-layout{grid-template-columns:1fr;}
   }
@@ -202,7 +208,6 @@ async function withRetry(fn, retries){
   }
 }
 
-const LIEUX_VENTE = ['Magasin','Marché','Site internet'];
 const MODES_REGLEMENT = ['CB','Espèces','Carte cadeau'];
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 
@@ -212,6 +217,7 @@ let state = {
   articles: [], // { ...article fields, variants: [{id,taille,stock}] }
   ventes: [],
   clotures: [], // cloture_caisse rows
+  lieux: [], // [{id, nom}] dynamic, user-manageable sale locations
   loading: true,
   error: null,
   collectionFilter: 'Toutes',
@@ -221,6 +227,8 @@ let state = {
   lieuVente: 'Magasin',
   reglements: [{ mode: 'CB', montant: 0 }],
   toast: null, // { message, kind }
+  saleConfirmation: null, // { message } shown inline in the cart panel
+  newLieuName: '',
   showForm: false,
   editing: null,
   formVariants: [], // {key, dbId, taille, stock}
@@ -231,6 +239,9 @@ let state = {
   caisseFondCaisse: '',
   caisseComptageReel: '',
   caisseNote: '',
+  exportFrom: '',
+  exportTo: '',
+  exportLieu: 'Tous',
 };
 
 function totalStock(article){
@@ -244,20 +255,25 @@ function lowVariants(article){
 async function loadAll(){
   state.loading = true; render();
   try{
-    const [{ data: articles, error: e1 }, { data: ventes, error: e2 }, { data: clotures, error: e3 }] = await Promise.all([
+    const [{ data: articles, error: e1 }, { data: ventes, error: e2 }, { data: clotures, error: e3 }, { data: lieux, error: e4 }] = await Promise.all([
       withRetry(() => sb.from('articles').select('*, article_variants(*)').order('created_at', { ascending: false })),
       withRetry(() => sb.from('ventes').select('*').order('date', { ascending: false }).limit(500)),
-      withRetry(() => sb.from('cloture_caisse').select('*'))
+      withRetry(() => sb.from('cloture_caisse').select('*')),
+      withRetry(() => sb.from('lieux_vente').select('*').order('created_at', { ascending: true }))
     ]);
     if (e1) throw e1;
     if (e2) throw e2;
     if (e3) throw e3;
+    if (e4) throw e4;
     state.articles = (articles || []).map(a => ({
       ...a,
       variants: sortVariants((a.article_variants || []).map(v => ({ id: v.id, taille: v.taille, stock: v.stock })))
     }));
     state.ventes = ventes || [];
     state.clotures = clotures || [];
+    state.lieux = lieux || [];
+    if (!state.lieux.some(l => l.nom === state.lieuVente) && state.lieux.length) state.lieuVente = state.lieux[0].nom;
+    if (!state.lieux.some(l => l.nom === state.caisseLieu) && state.lieux.length) state.caisseLieu = state.lieux[0].nom;
     prefillCaisseForm();
     state.error = null;
   } catch(err){
@@ -291,6 +307,30 @@ function showToast(message, kind){
 }
 
 function setLieuVente(l){ state.lieuVente = l; render(); }
+
+function updateNewLieuName(v){ state.newLieuName = v; }
+async function addLieuVente(){
+  const nom = (state.newLieuName || '').trim();
+  if (!nom) return;
+  try{
+    const { error } = await sb.from('lieux_vente').insert({ nom });
+    if (error) throw error;
+    state.newLieuName = '';
+    await loadAll();
+  } catch(err){
+    showToast("Impossible d'ajouter ce lieu : " + err.message, 'error');
+  }
+}
+async function deleteLieuVente(id, nom){
+  if (!confirm(`Supprimer le lieu de vente "${nom}" ? (les ventes déjà enregistrées gardent leur historique)`)) return;
+  try{
+    const { error } = await sb.from('lieux_vente').delete().eq('id', id);
+    if (error) throw error;
+    await loadAll();
+  } catch(err){
+    showToast('Erreur lors de la suppression : ' + err.message, 'error');
+  }
+}
 
 // ---------- Multi-payment (reglements) ----------
 function addReglementLine(){
@@ -506,7 +546,9 @@ async function encaisser(){
     state.reglements = [{ mode:'CB', montant: 0 }];
     await loadAll();
     const modesLabel = reglementsToSave.map(r => `${r.mode} ${euros(r.montant)}`).join(' + ');
-    showToast(`Vente enregistrée · ${euros(total)} · ${modesLabel} · ${lieu}`, 'success');
+    state.saleConfirmation = { message: `Vente enregistrée · ${euros(total)}`, detail: `${modesLabel} · ${lieu}` };
+    render();
+    setTimeout(() => { state.saleConfirmation = null; render(); }, 4500);
   } catch(err){
     console.error(err);
     const msg = /522|timeout|network|fetch/i.test(String(err.message||err))
@@ -714,6 +756,23 @@ function renderReglementsEditor(){
   </div>`;
 }
 
+function renderLieuPicker(){
+  return `
+  <div class="field" style="margin-bottom:14px;">Lieu de vente
+    <div class="pills" style="padding-bottom:4px;">
+      ${state.lieux.map(l => `
+        <span style="display:inline-flex;align-items:center;gap:3px;">
+          ${Pill(l.nom, state.lieuVente===l.nom, `setLieuVente('${l.nom.replace(/'/g,"\\'")}')`)}
+        </span>`).join('')}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:4px;">
+      <input id="new-lieu-input" class="input" placeholder="Nouveau lieu (ex : Marché de Pornichet)" value="${escapeHtml(state.newLieuName)}" oninput="updateNewLieuName(this.value)" />
+      <button type="button" class="add-size-btn" onclick="addLieuVente()">+ Créer</button>
+    </div>
+    ${state.lieux.length ? `<div style="margin-top:4px;">${state.lieux.map(l => `<span style="font-size:10.5px;color:var(--ink-soft);margin-right:8px;">${escapeHtml(l.nom)} <a href="#" onclick="event.preventDefault();deleteLieuVente('${l.id}','${escapeHtml(l.nom).replace(/'/g,"\\'")}')" style="color:var(--coral-deep);">supprimer</a></span>`).join('')}</div>` : ''}
+  </div>`;
+}
+
 function renderVente(){
   const list = filteredArticles(state.ventesearch);
   const detail = panierDetail();
@@ -723,11 +782,6 @@ function renderVente(){
   return `
   <div class="vente-layout" style="margin-top:8px;">
     <div>
-      <div class="field" style="margin-bottom:10px;">Lieu de vente
-        <div class="pills" style="padding-bottom:0;">
-          ${LIEUX_VENTE.map(l => Pill(l, state.lieuVente===l, `setLieuVente('${l}')`)).join('')}
-        </div>
-      </div>
       <div class="toolbar" style="margin-bottom:0;">
         ${SearchBox('vente-search-input', state.ventesearch, 'onVenteSearchInput', 'Rechercher par nom ou code...')}
       </div>
@@ -749,30 +803,39 @@ function renderVente(){
 
     <div class="panel cart">
       <div class="panel-title">${ICONS.bag} Panier</div>
-      ${detail.length===0 ? '<div class="muted">Clique sur une taille pour ajouter un article à la vente.</div>' : ''}
-      <div style="margin-bottom:14px;">
-        ${detail.map(p => `
-          <div class="cart-row">
-            ${PhotoSafe(p.article.photo, p.article.nom, 38, 9)}
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.article.nom)} <span class="muted">· ${escapeHtml(p.taille)}</span></div>
-              <div style="font-size:11.5px;color:var(--ink-soft);">${euros(p.article.prix)} × ${p.qty}</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:4px;">
-              <button class="qty-btn" onclick="changeQty('${p.articleId}','${p.taille.replace(/'/g,"\\'")}',-1)">${ICONS.minus}</button>
-              <span style="font-size:13px;font-weight:600;width:16px;text-align:center;display:inline-block;">${p.qty}</span>
-              <button class="qty-btn" onclick="changeQty('${p.articleId}','${p.taille.replace(/'/g,"\\'")}',1)">${ICONS.plus}</button>
-            </div>
-          </div>`).join('')}
-      </div>
-      ${renderReglementsEditor()}
-      <div class="cart-total">
-        <span style="font-size:14px;color:var(--ink-soft);">Total</span>
-        <span class="cart-total-value">${euros(total)}</span>
-      </div>
-      <button class="btn btn-sage" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;" ${canEncaisser?'':'disabled'} onclick="encaisser()">
-        ${state.saving ? 'Enregistrement…' : "Encaisser la vente"}
-      </button>
+      ${state.saleConfirmation ? `
+        <div class="sale-confirm">
+          ${ICONS.check}
+          <div class="sale-confirm-title">${escapeHtml(state.saleConfirmation.message)}</div>
+          <div class="sale-confirm-detail">${escapeHtml(state.saleConfirmation.detail)}</div>
+        </div>
+      ` : `
+        ${renderLieuPicker()}
+        ${detail.length===0 ? '<div class="muted">Clique sur une taille pour ajouter un article à la vente.</div>' : ''}
+        <div style="margin-bottom:14px;">
+          ${detail.map(p => `
+            <div class="cart-row">
+              ${PhotoSafe(p.article.photo, p.article.nom, 38, 9)}
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.article.nom)} <span class="muted">· ${escapeHtml(p.taille)}</span></div>
+                <div style="font-size:11.5px;color:var(--ink-soft);">${euros(p.article.prix)} × ${p.qty}</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;">
+                <button class="qty-btn" onclick="changeQty('${p.articleId}','${p.taille.replace(/'/g,"\\'")}',-1)">${ICONS.minus}</button>
+                <span style="font-size:13px;font-weight:600;width:16px;text-align:center;display:inline-block;">${p.qty}</span>
+                <button class="qty-btn" onclick="changeQty('${p.articleId}','${p.taille.replace(/'/g,"\\'")}',1)">${ICONS.plus}</button>
+              </div>
+            </div>`).join('')}
+        </div>
+        ${renderReglementsEditor()}
+        <div class="cart-total">
+          <span style="font-size:14px;color:var(--ink-soft);">Total</span>
+          <span class="cart-total-value">${euros(total)}</span>
+        </div>
+        <button class="btn btn-sage" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;" ${canEncaisser?'':'disabled'} onclick="encaisser()">
+          ${state.saving ? 'Enregistrement…' : "Encaisser la vente"}
+        </button>
+      `}
     </div>
   </div>`;
 }
@@ -858,6 +921,92 @@ async function saveCloture(){
   render();
 }
 
+function setExportRange(kind){
+  const now = new Date();
+  let from, to;
+  if (kind === 'semaine'){
+    const day = (now.getDay() + 6) % 7; // Monday = 0
+    from = new Date(now); from.setDate(now.getDate() - day);
+    to = new Date(now);
+  } else if (kind === 'mois'){
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+    to = new Date(now);
+  } else {
+    from = null; to = null;
+  }
+  state.exportFrom = from ? from.toISOString().slice(0,10) : '';
+  state.exportTo = to ? to.toISOString().slice(0,10) : '';
+  render();
+}
+function setExportLieu(l){ state.exportLieu = l; render(); }
+function updateExportField(field, value){ state[field] = value; renderPreservingFocus(); }
+
+function ventesForExport(){
+  return state.ventes.filter(v => {
+    const d = dateOnly(v.date);
+    if (state.exportFrom && d < state.exportFrom) return false;
+    if (state.exportTo && d > state.exportTo) return false;
+    if (state.exportLieu !== 'Tous' && v.lieu_vente !== state.exportLieu) return false;
+    return true;
+  });
+}
+
+function exportVentesExcel(){
+  const rows = ventesForExport();
+  if (rows.length === 0){ showToast('Aucune vente sur cette période / ce lieu.', 'error'); return; }
+  const data = rows.map(v => {
+    const d = new Date(v.date);
+    const reglementsStr = (v.reglements||[]).map(r => `${r.mode}: ${Number(r.montant).toFixed(2)}€`).join(' + ');
+    const articlesStr = (v.items||[]).map(it => `${it.qty}x ${it.nom}${it.taille?' ('+it.taille+')':''}`).join(', ');
+    return {
+      'Date': d.toLocaleDateString('fr-FR'),
+      'Heure': d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),
+      'Lieu de vente': v.lieu_vente || '',
+      'Articles': articlesStr,
+      'Nb articles': (v.items||[]).reduce((s,it)=>s+it.qty,0),
+      'Total (€)': Number(v.total),
+      'Règlements': reglementsStr,
+    };
+  });
+  const totalGeneral = rows.reduce((s,v)=>s+Number(v.total),0);
+  data.push({ 'Date':'', 'Heure':'', 'Lieu de vente':'', 'Articles':'', 'Nb articles':'', 'Total (€)': totalGeneral, 'Règlements': 'TOTAL' });
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:11},{wch:7},{wch:16},{wch:45},{wch:10},{wch:11},{wch:28}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Ventes');
+  const label = (state.exportFrom || state.exportTo) ? `${state.exportFrom||'debut'}_au_${state.exportTo||'aujourdhui'}` : 'toutes';
+  XLSX.writeFile(wb, `ventes-bebeach-${label}.xlsx`);
+}
+
+function renderExportPanel(){
+  return `
+  <div class="panel" style="margin-top:18px;">
+    <div class="panel-title">${ICONS.history} Export des ventes (Excel)</div>
+    <div class="toolbar" style="margin-bottom:10px;">
+      <button type="button" class="add-size-btn" onclick="setExportRange('semaine')">Cette semaine</button>
+      <button type="button" class="add-size-btn" onclick="setExportRange('mois')">Ce mois</button>
+      <button type="button" class="add-size-btn" onclick="setExportRange('tout')">Tout</button>
+    </div>
+    <div class="field-row">
+      <label class="field" style="flex:1;">Du
+        <input id="export-from" class="input" type="date" value="${state.exportFrom}" oninput="updateExportField('exportFrom', this.value)" />
+      </label>
+      <label class="field" style="flex:1;">Au
+        <input id="export-to" class="input" type="date" value="${state.exportTo}" oninput="updateExportField('exportTo', this.value)" />
+      </label>
+      <label class="field" style="flex:1;">Lieu de vente
+        <select class="input" onchange="setExportLieu(this.value)">
+          <option value="Tous" ${state.exportLieu==='Tous'?'selected':''}>Tous</option>
+          ${state.lieux.map(l => `<option value="${escapeHtml(l.nom)}" ${state.exportLieu===l.nom?'selected':''}>${escapeHtml(l.nom)}</option>`).join('')}
+        </select>
+      </label>
+    </div>
+    <div class="muted" style="margin-bottom:10px;">${ventesForExport().length} vente(s) correspondent à ces filtres.</div>
+    <button class="btn btn-coral" onclick="exportVentesExcel()">Télécharger le fichier Excel</button>
+  </div>`;
+}
+
 function renderCaisse(){
   const ventesJour = ventesForCaisse();
   const totals = reglementTotalsForCaisse();
@@ -875,7 +1024,7 @@ function renderCaisse(){
         <input class="input" type="date" value="${state.caisseDate}" onchange="setCaisseDate(this.value)" />
       </label>
       <div class="pills" style="padding-bottom:0;">
-        ${LIEUX_VENTE.map(l => Pill(l, state.caisseLieu===l, `setCaisseLieu('${l}')`)).join('')}
+        ${state.lieux.map(l => Pill(l.nom, state.caisseLieu===l.nom, `setCaisseLieu('${l.nom.replace(/'/g,"\\'")}')`)).join('')}
       </div>
     </div>
 
@@ -934,6 +1083,7 @@ function renderCaisse(){
           </div>`).join('')}
       </div>
     </div>
+    ${renderExportPanel()}
   </div>`;
 }
 
