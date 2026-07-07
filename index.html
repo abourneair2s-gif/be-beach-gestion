@@ -114,6 +114,7 @@
 
   .cart{position:sticky;top:16px;}
   .cart-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .cart-size-badge{flex-shrink:0;border:1.5px solid var(--sky-deep);color:var(--sky-deep);font-weight:700;font-size:11.5px;border-radius:7px;padding:3px 7px;text-transform:uppercase;}
   .qty-btn{width:22px;height:22px;border-radius:50%;border:1px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;}
   .cart-total{border-top:1px solid var(--line);padding-top:12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
   .cart-total-value{font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--coral-deep);}
@@ -1532,9 +1533,10 @@ function renderVente(){
             <div class="cart-row">
               ${PhotoSafe(p.color.photo, p.article.nom, 38, 9)}
               <div style="flex:1;min-width:0;">
-                <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.article.nom)} <span class="muted">· ${escapeHtml(p.color.couleur)} · ${escapeHtml(p.taille)}</span></div>
+                <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.article.nom)} <span class="muted">· ${escapeHtml(p.color.couleur)}</span></div>
                 <div style="font-size:11.5px;color:var(--ink-soft);">${euros(prixRemise(p.color))} × ${p.qty}</div>
               </div>
+              <span class="cart-size-badge">${escapeHtml(p.taille)}</span>
               <div style="display:flex;align-items:center;gap:4px;">
                 <button class="qty-btn" onclick="changeQty('${p.colorId}','${p.taille.replace(/'/g,"\\'")}',-1)">${ICONS.minus}</button>
                 <span style="font-size:13px;font-weight:600;width:16px;text-align:center;display:inline-block;">${p.qty}</span>
