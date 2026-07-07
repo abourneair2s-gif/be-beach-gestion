@@ -141,8 +141,44 @@
   .sale-confirm-title{font-family:'Fraunces',serif;font-size:19px;font-weight:700;color:var(--ink);}
   .sale-confirm-detail{font-size:13px;color:var(--ink-soft);}
 
+  html{overflow-x:hidden;}
+  body{overflow-x:hidden;}
+
   @media (max-width: 720px){
     .grid2, .vente-layout{grid-template-columns:1fr;}
+  }
+
+  @media (max-width: 600px){
+    .header{padding:16px 14px 34px;}
+    .logo-badge{height:56px;padding:6px 12px;}
+    .logo-sub{font-size:9px;}
+    .nav-btn{padding:8px 12px;font-size:12.5px;}
+    .container{padding:0 12px 32px;}
+
+    .stat-row{gap:10px;}
+    .stat-card{flex:1 1 calc(50% - 10px);min-width:0;padding:14px 14px;}
+    .stat-value{font-size:22px;}
+
+    .toolbar{gap:8px;}
+    .search-wrap{max-width:none;flex:1 1 100%;}
+
+    .field-row{flex-direction:column;gap:10px;}
+    .field-row .field{width:100%;}
+
+    .stock-grid{grid-template-columns:1fr;}
+    .vente-grid{grid-template-columns:repeat(2, 1fr);gap:8px;}
+    .vente-tile{padding:8px;}
+
+    .stock-top{gap:8px;}
+    .stock-actions{flex-wrap:wrap;}
+
+    .modal{padding:18px;max-width:100%;}
+
+    .variant-editor-row{flex-wrap:wrap;}
+    .variant-editor-row input.taille-input{max-width:none;flex:1 1 90px;}
+
+    table, .panel{max-width:100%;}
+    .sale-row{flex-wrap:wrap;gap:4px;}
   }
 </style>
 </head>
