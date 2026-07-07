@@ -1003,12 +1003,30 @@ async function saveArticleForm(e){
 }
 
 function askDelete(id){ state.confirmDelete = id; render(); }
+function cancelDelete(){ state.confirmDelete = null; render(); }
 async function deleteArticle(id){
   try{
     const { error } = await sb.from('articles').delete().eq('id', id);
     if (error) throw error;
     const removedColorIds = new Set((state.articles.find(a=>a.id===id)?.colors||[]).map(c=>c.id));
     state.panier = state.panier.filter(p => !removedColorIds.has(p.colorId));
+    await loadAll();
+  } catch(err){
+    alert("Erreur lors de la suppression : " + err.message);
+  }
+  state.confirmDelete = null;
+  render();
+}
+async function deleteColor(colorId, articleId){
+  const article = state.articles.find(a => a.id === articleId);
+  if (article && article.colors.length <= 1){
+    // Last remaining color: deleting it would leave an empty article, so remove the whole article instead.
+    return deleteArticle(articleId);
+  }
+  try{
+    const { error } = await sb.from('article_colors').delete().eq('id', colorId);
+    if (error) throw error;
+    state.panier = state.panier.filter(p => p.colorId !== colorId);
     await loadAll();
   } catch(err){
     alert("Erreur lors de la suppression : " + err.message);
@@ -1428,9 +1446,10 @@ function renderStock(){
           </div>
           <div class="stock-actions">
             <button class="btn btn-outline btn-sm" onclick="openEditForm('${a.id}')">Modifier</button>
-            ${state.confirmDelete===a.id
-              ? `<button class="btn btn-sm" style="background:var(--coral-deep);color:#fff;" onclick="deleteArticle('${a.id}')">Confirmer ?</button>`
-              : `<button class="btn btn-outline btn-sm" style="color:var(--coral-deep);padding:5px 8px;" onclick="askDelete('${a.id}')">${ICONS.trash}</button>`}
+            ${state.confirmDelete===c.id
+              ? `<button class="btn btn-sm" style="background:var(--coral-deep);color:#fff;" onclick="deleteColor('${c.id}','${a.id}')">Confirmer ?</button>
+                 <button class="btn btn-outline btn-sm" onclick="cancelDelete()">Annuler</button>`
+              : `<button class="btn btn-outline btn-sm" style="color:var(--coral-deep);padding:5px 8px;" onclick="askDelete('${c.id}')">${ICONS.trash}</button>`}
           </div>
         </div>`).join('')}
     </div>
