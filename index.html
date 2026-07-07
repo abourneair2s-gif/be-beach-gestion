@@ -562,6 +562,9 @@ function showClientEmailsFallback(text, count){
 // ---------- Client picker in cart ----------
 function setSelectedClient(id){ state.selectedClientId = id || null; render(); }
 function onClientPickerInput(e){ state.clientPickerQuery = e.target.value; renderPreservingFocus(); }
+function clientLabel(c){ return `${c.prenom||''} ${c.nom||''}`.trim() || c.email || c.telephone || 'Client'; }
+function findClientById(id){ return id ? state.clients.find(c => c.id === id) : null; }
+
 function renderClientPicker(){
   const selected = findClientById(state.selectedClientId);
   const q = (state.clientPickerQuery||'').trim().toLowerCase();
