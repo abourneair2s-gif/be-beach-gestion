@@ -34,9 +34,9 @@
 
   .header{position:relative;background:linear-gradient(120deg,var(--sky),var(--sky-deep));padding:22px 24px 40px;}
   .header-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
-  .logo{display:flex;align-items:center;gap:9px;}
-  .logo-badge{width:36px;height:36px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
-  .logo-badge img{width:100%;height:100%;object-fit:contain;padding:3px;}
+  .logo{display:flex;align-items:center;gap:12px;}
+  .logo-badge{height:52px;padding:6px 14px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+  .logo-badge img{height:100%;width:auto;display:block;}
   .logo-name{font-family:'Fraunces',serif;font-weight:600;font-size:17px;color:var(--ink);}
   .logo-sub{font-size:10px;letter-spacing:1px;color:var(--ink-soft);text-transform:uppercase;}
   .nav{display:flex;gap:8px;flex-wrap:wrap;}
@@ -132,6 +132,9 @@
 
   .loading-screen{display:flex;align-items:center;justify-content:center;height:100vh;color:var(--ink-soft);font-size:14px;}
 
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);color:#fff;padding:12px 20px;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,0.2);display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;z-index:100;max-width:90vw;text-align:center;animation:toast-in 0.2s ease;}
+  @keyframes toast-in{from{opacity:0;transform:translate(-50%,10px);}to{opacity:1;transform:translate(-50%,0);}}
+
   @media (max-width: 720px){
     .grid2, .vente-layout{grid-template-columns:1fr;}
   }
@@ -171,7 +174,8 @@ const ICONS = {
   x: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
   imageOff: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2l20 20"/><path d="M10.4 4H19a2 2 0 0 1 2 2v12.6"/><path d="M4 6.4V19a2 2 0 0 0 2 2h12.6"/><circle cx="9" cy="9" r="2"/></svg>',
   check: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
-  wave: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 15c2 0 2-3 4-3s2 3 4 3 2-3 4-3 2 3 4 3 2-3 4-3"/><path d="M2 20c2 0 2-3 4-3s2 3 4 3 2-3 4-3 2 3 4 3 2-3 4-3"/></svg>'
+  wave: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 15c2 0 2-3 4-3s2 3 4 3 2-3 4-3 2 3 4 3 2-3 4-3"/><path d="M2 20c2 0 2-3 4-3s2 3 4 3 2-3 4-3 2 3 4 3 2-3 4-3"/></svg>',
+  cash: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 6v0M18 18v0"/></svg>'
 };
 
 function euros(n){
@@ -198,24 +202,35 @@ async function withRetry(fn, retries){
   }
 }
 
+const LIEUX_VENTE = ['Magasin','Marché','Site internet'];
+const MODES_REGLEMENT = ['CB','Espèces','Carte cadeau'];
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+
 // ---------- State ----------
 let state = {
   tab: 'dashboard',
   articles: [], // { ...article fields, variants: [{id,taille,stock}] }
   ventes: [],
+  clotures: [], // cloture_caisse rows
   loading: true,
   error: null,
   collectionFilter: 'Toutes',
   search: '',
   ventesearch: '',
   panier: [], // {articleId, taille, qty}
-  modeReglement: 'CB',
+  lieuVente: 'Magasin',
+  reglements: [{ mode: 'CB', montant: 0 }],
+  toast: null, // { message, kind }
   showForm: false,
   editing: null,
   formVariants: [], // {key, dbId, taille, stock}
   confirmDelete: null,
-  justSold: false,
   saving: false,
+  caisseDate: todayStr(),
+  caisseLieu: 'Magasin',
+  caisseFondCaisse: '',
+  caisseComptageReel: '',
+  caisseNote: '',
 };
 
 function totalStock(article){
@@ -229,17 +244,21 @@ function lowVariants(article){
 async function loadAll(){
   state.loading = true; render();
   try{
-    const [{ data: articles, error: e1 }, { data: ventes, error: e2 }] = await Promise.all([
+    const [{ data: articles, error: e1 }, { data: ventes, error: e2 }, { data: clotures, error: e3 }] = await Promise.all([
       withRetry(() => sb.from('articles').select('*, article_variants(*)').order('created_at', { ascending: false })),
-      withRetry(() => sb.from('ventes').select('*').order('date', { ascending: false }).limit(200))
+      withRetry(() => sb.from('ventes').select('*').order('date', { ascending: false }).limit(500)),
+      withRetry(() => sb.from('cloture_caisse').select('*'))
     ]);
     if (e1) throw e1;
     if (e2) throw e2;
+    if (e3) throw e3;
     state.articles = (articles || []).map(a => ({
       ...a,
       variants: sortVariants((a.article_variants || []).map(v => ({ id: v.id, taille: v.taille, stock: v.stock })))
     }));
     state.ventes = ventes || [];
+    state.clotures = clotures || [];
+    prefillCaisseForm();
     state.error = null;
   } catch(err){
     console.error(err);
@@ -252,15 +271,50 @@ async function loadAll(){
 // ---------- Actions: navigation ----------
 function setTab(t){ state.tab = t; state.confirmDelete = null; render(); }
 function setCollectionFilter(c){ state.collectionFilter = c; render(); }
-function onSearchInput(e){ liveSearch('search', e); }
-function onVenteSearchInput(e){ liveSearch('ventesearch', e); }
-function liveSearch(key, e){
-  state[key] = e.target.value;
-  const id = e.target.id;
-  const pos = e.target.selectionStart;
+function renderPreservingFocus(){
+  const active = document.activeElement;
+  const id = active && active.id;
+  const pos = active && typeof active.selectionStart === 'number' ? active.selectionStart : null;
   render();
-  const el = document.getElementById(id);
-  if (el){ el.focus(); if (pos != null) el.setSelectionRange(pos,pos); }
+  if (id){
+    const el = document.getElementById(id);
+    if (el){ el.focus(); if (pos != null && el.setSelectionRange) el.setSelectionRange(pos,pos); }
+  }
+}
+function onSearchInput(e){ state.search = e.target.value; renderPreservingFocus(); }
+function onVenteSearchInput(e){ state.ventesearch = e.target.value; renderPreservingFocus(); }
+
+function showToast(message, kind){
+  state.toast = { message, kind: kind || 'success' };
+  render();
+  setTimeout(() => { state.toast = null; render(); }, 3800);
+}
+
+function setLieuVente(l){ state.lieuVente = l; render(); }
+
+// ---------- Multi-payment (reglements) ----------
+function addReglementLine(){
+  const remaining = Math.max(0, +(panierTotal() - reglementsTotal()).toFixed(2));
+  const usedModes = new Set(state.reglements.map(r => r.mode));
+  const nextMode = MODES_REGLEMENT.find(m => !usedModes.has(m)) || MODES_REGLEMENT[0];
+  state.reglements.push({ mode: nextMode, montant: remaining });
+  render();
+}
+function removeReglementLine(idx){
+  state.reglements.splice(idx,1);
+  if (state.reglements.length === 0) state.reglements.push({ mode:'CB', montant: panierTotal() });
+  render();
+}
+function setReglementMode(idx, mode){ state.reglements[idx].mode = mode; render(); }
+function updateReglementMontant(idx, value){
+  state.reglements[idx].montant = value === '' ? '' : parseFloat(value) || 0;
+  renderPreservingFocus();
+}
+function reglementsTotal(){
+  return state.reglements.reduce((s,r) => s + (parseFloat(r.montant) || 0), 0);
+}
+function reglementsRemaining(){
+  return +(panierTotal() - reglementsTotal()).toFixed(2);
 }
 
 // ---------- Actions: article form ----------
@@ -404,6 +458,7 @@ function addToPanier(articleId, taille){
   if (currentQty >= variant.stock) return;
   if (existing) existing.qty += 1;
   else state.panier.push({ articleId, taille, qty: 1 });
+  syncSingleReglement();
   render();
 }
 function changeQty(articleId, taille, delta){
@@ -412,7 +467,11 @@ function changeQty(articleId, taille, delta){
   if (!p || !variant) return;
   p.qty = Math.min(variant.stock, Math.max(0, p.qty + delta));
   state.panier = state.panier.filter(x => x.qty > 0);
+  syncSingleReglement();
   render();
+}
+function syncSingleReglement(){
+  if (state.reglements.length === 1) state.reglements[0].montant = panierTotal();
 }
 function panierDetail(){
   return state.panier.map(p => ({
@@ -423,16 +482,20 @@ function panierDetail(){
 function panierTotal(){
   return panierDetail().reduce((s,p) => s + p.article.prix * p.qty, 0);
 }
-function setModeReglement(m){ state.modeReglement = m; render(); }
-
 async function encaisser(){
   const detail = panierDetail();
   if (detail.length === 0) return;
   const total = panierTotal();
+  if (Math.abs(reglementsRemaining()) > 0.004){
+    alert("Le total des règlements (" + euros(reglementsTotal()) + ") ne correspond pas au total de la vente (" + euros(total) + "). Ajuste les montants avant d'encaisser.");
+    return;
+  }
   const items = detail.map(p => ({ nom: p.article.nom, taille: p.taille, qty: p.qty, prixUnitaire: p.article.prix }));
+  const reglementsToSave = state.reglements.map(r => ({ mode: r.mode, montant: parseFloat(r.montant) || 0 }));
+  const lieu = state.lieuVente;
   state.saving = true; render();
   try{
-    const { error: e1 } = await withRetry(() => sb.from('ventes').insert({ date: new Date().toISOString(), items, total, mode_reglement: state.modeReglement }));
+    const { error: e1 } = await withRetry(() => sb.from('ventes').insert({ date: new Date().toISOString(), items, total, reglements: reglementsToSave, lieu_vente: lieu }));
     if (e1) throw e1;
     for (const p of detail){
       const variant = findVariant(p.articleId, p.taille);
@@ -440,15 +503,16 @@ async function encaisser(){
       if (e2) throw e2;
     }
     state.panier = [];
-    state.justSold = true;
+    state.reglements = [{ mode:'CB', montant: 0 }];
     await loadAll();
-    setTimeout(() => { state.justSold = false; render(); }, 2200);
+    const modesLabel = reglementsToSave.map(r => `${r.mode} ${euros(r.montant)}`).join(' + ');
+    showToast(`Vente enregistrée · ${euros(total)} · ${modesLabel} · ${lieu}`, 'success');
   } catch(err){
     console.error(err);
     const msg = /522|timeout|network|fetch/i.test(String(err.message||err))
       ? "Le réseau a coupé un instant pendant l'encaissement. Vérifie l'onglet Historique : si la vente n'y est pas, réessaie."
       : "Erreur lors de l'encaissement : " + err.message;
-    alert(msg);
+    showToast(msg, 'error');
   }
   state.saving = false;
   render();
@@ -511,17 +575,15 @@ function renderHeader(){
     { id:'dashboard', label:'Tableau de bord', icon: ICONS.home },
     { id:'stock', label:'Stock', icon: ICONS.package },
     { id:'vente', label:'Vente', icon: ICONS.bag },
+    { id:'caisse', label:'Caisse', icon: ICONS.cash },
     { id:'historique', label:'Historique', icon: ICONS.history },
   ];
   return `
   <div class="header">
     <div class="header-row">
       <div class="logo">
-        <div class="logo-badge"><img src="https://bebeach.fr/cdn/shop/files/logo_BB_8c3a1e79-c03d-48ff-9fb5-4a32001d04c8.png?v=1714516242" alt="Be Beach" /></div>
-        <div>
-          <div class="logo-name">Be beach</div>
-          <div class="logo-sub">Gestion boutique</div>
-        </div>
+        <div class="logo-badge"><img src="logo-bebeach.png" alt="Be Beach - La Petite Californie" /></div>
+        <div class="logo-sub">Gestion boutique</div>
       </div>
       <div class="nav">
         ${NAV.map(n => `<button class="nav-btn ${state.tab===n.id?'active':''}" onclick="setTab('${n.id}')">${n.icon}${n.label}</button>`).join('')}
@@ -631,13 +693,41 @@ function renderStock(){
   </div>`;
 }
 
+function renderReglementsEditor(){
+  const remaining = reglementsRemaining();
+  return `
+  <div class="field" style="margin-bottom:10px;">Mode(s) de règlement
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      ${state.reglements.map((r, idx) => `
+        <div style="display:flex;gap:6px;align-items:center;">
+          <select class="input" style="flex:1.3;" onchange="setReglementMode(${idx}, this.value)">
+            ${MODES_REGLEMENT.map(m => `<option value="${m}" ${r.mode===m?'selected':''}>${m}</option>`).join('')}
+          </select>
+          ${state.reglements.length > 1
+            ? `<input id="reg-montant-${idx}" class="input" type="number" min="0" step="0.5" style="flex:1;" value="${r.montant}" oninput="updateReglementMontant(${idx}, this.value)" />`
+            : `<span style="flex:1;font-weight:600;text-align:right;padding-right:6px;">${euros(r.montant)}</span>`}
+          ${state.reglements.length > 1 ? `<button type="button" class="mini-btn" style="color:var(--coral-deep);" onclick="removeReglementLine(${idx})">${ICONS.x}</button>` : ''}
+        </div>`).join('')}
+    </div>
+    <button type="button" class="add-size-btn" style="margin-top:6px;align-self:flex-start;" onclick="addReglementLine()">+ Ajouter un règlement (paiement partagé)</button>
+    ${state.reglements.length > 1 ? `<div style="font-size:12px;margin-top:4px;color:${Math.abs(remaining)<0.004 ? 'var(--sage)' : 'var(--coral-deep)'};font-weight:600;">${Math.abs(remaining)<0.004 ? 'Montants équilibrés ✓' : (remaining>0 ? `Reste à répartir : ${euros(remaining)}` : `Trop réparti de ${euros(-remaining)}`)}</div>` : ''}
+  </div>`;
+}
+
 function renderVente(){
   const list = filteredArticles(state.ventesearch);
   const detail = panierDetail();
   const total = panierTotal();
+  const remaining = reglementsRemaining();
+  const canEncaisser = detail.length > 0 && Math.abs(remaining) < 0.004 && !state.saving;
   return `
   <div class="vente-layout" style="margin-top:8px;">
     <div>
+      <div class="field" style="margin-bottom:10px;">Lieu de vente
+        <div class="pills" style="padding-bottom:0;">
+          ${LIEUX_VENTE.map(l => Pill(l, state.lieuVente===l, `setLieuVente('${l}')`)).join('')}
+        </div>
+      </div>
       <div class="toolbar" style="margin-bottom:0;">
         ${SearchBox('vente-search-input', state.ventesearch, 'onVenteSearchInput', 'Rechercher par nom ou code...')}
       </div>
@@ -675,17 +765,13 @@ function renderVente(){
             </div>
           </div>`).join('')}
       </div>
-      <div class="field" style="margin-bottom:14px;">Mode de règlement
-        <div class="pills" style="padding-bottom:0;">
-          ${['CB','Espèces','Carte cadeau'].map(m => Pill(m, state.modeReglement===m, `setModeReglement('${m}')`)).join('')}
-        </div>
-      </div>
+      ${renderReglementsEditor()}
       <div class="cart-total">
         <span style="font-size:14px;color:var(--ink-soft);">Total</span>
         <span class="cart-total-value">${euros(total)}</span>
       </div>
-      <button class="btn btn-sage" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;" ${detail.length===0||state.saving?'disabled':''} onclick="encaisser()">
-        ${state.justSold ? ICONS.check + ' Vente enregistrée' : (state.saving ? 'Enregistrement…' : "Encaisser la vente")}
+      <button class="btn btn-sage" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;" ${canEncaisser?'':'disabled'} onclick="encaisser()">
+        ${state.saving ? 'Enregistrement…' : "Encaisser la vente"}
       </button>
     </div>
   </div>`;
@@ -698,7 +784,7 @@ function renderHistorique(){
     ${state.ventes.map(v => `
       <details>
         <summary>
-          <span class="muted">${new Date(v.date).toLocaleString('fr-FR',{dateStyle:'medium',timeStyle:'short'})} · ${escapeHtml(v.mode_reglement||'CB')}</span>
+          <span class="muted">${new Date(v.date).toLocaleString('fr-FR',{dateStyle:'medium',timeStyle:'short'})} · ${escapeHtml(v.lieu_vente||'Magasin')} · ${(v.reglements||[]).map(r=>escapeHtml(r.mode)+' '+euros(r.montant)).join(' + ')}</span>
           <span style="font-weight:700;">${euros(v.total)}</span>
         </summary>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);">
@@ -709,6 +795,145 @@ function renderHistorique(){
             </div>`).join('')}
         </div>
       </details>`).join('')}
+  </div>`;
+}
+
+// ---------- Caisse (end-of-day register check) ----------
+function dateOnly(iso){ return String(iso).slice(0,10); }
+
+function findCloture(date, lieu){
+  return state.clotures.find(c => c.date === date && c.lieu_vente === lieu) || null;
+}
+function setCaisseDate(d){
+  state.caisseDate = d;
+  prefillCaisseForm();
+  render();
+}
+function setCaisseLieu(l){
+  state.caisseLieu = l;
+  prefillCaisseForm();
+  render();
+}
+function prefillCaisseForm(){
+  const c = findCloture(state.caisseDate, state.caisseLieu);
+  state.caisseFondCaisse = c ? String(c.fond_caisse) : '';
+  state.caisseComptageReel = c && c.comptage_reel != null ? String(c.comptage_reel) : '';
+  state.caisseNote = c ? (c.note || '') : '';
+}
+function updateCaisseField(field, value){
+  state[field] = value;
+  renderPreservingFocus();
+}
+function ventesForCaisse(){
+  return state.ventes.filter(v => v.lieu_vente === state.caisseLieu && dateOnly(v.date) === state.caisseDate);
+}
+function reglementTotalsForCaisse(){
+  const totals = {};
+  MODES_REGLEMENT.forEach(m => totals[m] = 0);
+  ventesForCaisse().forEach(v => (v.reglements||[]).forEach(r => {
+    totals[r.mode] = (totals[r.mode] || 0) + Number(r.montant);
+  }));
+  return totals;
+}
+async function saveCloture(){
+  const fond = parseFloat(state.caisseFondCaisse) || 0;
+  const comptage = state.caisseComptageReel === '' ? null : (parseFloat(state.caisseComptageReel) || 0);
+  state.saving = true; render();
+  try{
+    const { error } = await withRetry(() => sb.from('cloture_caisse').upsert({
+      date: state.caisseDate,
+      lieu_vente: state.caisseLieu,
+      fond_caisse: fond,
+      comptage_reel: comptage,
+      note: state.caisseNote || null,
+    }, { onConflict: 'date,lieu_vente' }));
+    if (error) throw error;
+    await loadAll();
+    showToast('Clôture de caisse enregistrée pour le ' + new Date(state.caisseDate).toLocaleDateString('fr-FR') + ' · ' + state.caisseLieu, 'success');
+  } catch(err){
+    console.error(err);
+    showToast("Erreur lors de l'enregistrement de la clôture : " + err.message, 'error');
+  }
+  state.saving = false;
+  render();
+}
+
+function renderCaisse(){
+  const ventesJour = ventesForCaisse();
+  const totals = reglementTotalsForCaisse();
+  const totalCA = ventesJour.reduce((s,v) => s + Number(v.total), 0);
+  const fond = parseFloat(state.caisseFondCaisse) || 0;
+  const especes = totals['Espèces'] || 0;
+  const attendu = fond + especes;
+  const comptage = state.caisseComptageReel === '' ? null : parseFloat(state.caisseComptageReel);
+  const ecart = comptage == null ? null : +(comptage - attendu).toFixed(2);
+
+  return `
+  <div style="margin-top:8px;">
+    <div class="toolbar">
+      <label class="field" style="max-width:200px;">Date
+        <input class="input" type="date" value="${state.caisseDate}" onchange="setCaisseDate(this.value)" />
+      </label>
+      <div class="pills" style="padding-bottom:0;">
+        ${LIEUX_VENTE.map(l => Pill(l, state.caisseLieu===l, `setCaisseLieu('${l}')`)).join('')}
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-label">Ventes du jour</div>
+        <div class="stat-value">${ventesJour.length}</div>
+        <div class="stat-sub">${state.caisseLieu}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Chiffre d'affaires</div>
+        <div class="stat-value" style="color:var(--coral-deep);">${euros(totalCA)}</div>
+      </div>
+      ${MODES_REGLEMENT.map(m => `
+        <div class="stat-card">
+          <div class="stat-label">${escapeHtml(m)}</div>
+          <div class="stat-value" style="color:var(--sky-deep);font-size:22px;">${euros(totals[m]||0)}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-title">${ICONS.cash} Contrôle de caisse (espèces)</div>
+        <div class="field-row">
+          <label class="field" style="flex:1;">Fond de caisse (début)
+            <input id="caisse-fond" class="input" type="number" min="0" step="0.5" value="${escapeHtml(state.caisseFondCaisse)}" oninput="updateCaisseField('caisseFondCaisse', this.value)" />
+          </label>
+          <label class="field" style="flex:1;">Comptage réel (fin de journée)
+            <input id="caisse-comptage" class="input" type="number" min="0" step="0.5" value="${escapeHtml(state.caisseComptageReel)}" oninput="updateCaisseField('caisseComptageReel', this.value)" />
+          </label>
+        </div>
+        <div class="sale-row" style="border-bottom:none;">
+          <span class="muted">Espèces vendues aujourd'hui</span>
+          <span style="font-weight:600;">${euros(especes)}</span>
+        </div>
+        <div class="sale-row" style="border-bottom:none;">
+          <span class="muted">Attendu en caisse (fond + espèces)</span>
+          <span style="font-weight:600;">${euros(attendu)}</span>
+        </div>
+        <div class="sale-row" style="border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px;">
+          <span class="muted">Écart</span>
+          <span style="font-weight:700;color:${ecart==null?'var(--ink-soft)':(Math.abs(ecart)<0.01?'var(--sage)':'var(--coral-deep)')};">${ecart==null ? '—' : (ecart>0?'+':'')+euros(ecart)}</span>
+        </div>
+        <label class="field">Note (facultatif)
+          <input id="caisse-note" class="input" value="${escapeHtml(state.caisseNote)}" oninput="updateCaisseField('caisseNote', this.value)" placeholder="Ex : billet déchiré retiré, etc." />
+        </label>
+        <button class="btn btn-coral" style="width:100%;margin-top:8px;" ${state.saving?'disabled':''} onclick="saveCloture()">${state.saving?'Enregistrement…':'Enregistrer la clôture du jour'}</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Ventes — ${new Date(state.caisseDate).toLocaleDateString('fr-FR')} · ${escapeHtml(state.caisseLieu)}</div>
+        ${ventesJour.length===0 ? '<div class="muted">Aucune vente ce jour, sur ce point de vente.</div>' : ventesJour.map(v => `
+          <div class="sale-row">
+            <span class="muted">${new Date(v.date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} · ${(v.reglements||[]).map(r=>escapeHtml(r.mode)).join('+')}</span>
+            <span style="font-weight:600;">${euros(v.total)}</span>
+          </div>`).join('')}
+      </div>
+    </div>
   </div>`;
 }
 
@@ -784,10 +1009,17 @@ function render(){
     if (state.tab==='dashboard') content = renderDashboard();
     else if (state.tab==='stock') content = renderStock();
     else if (state.tab==='vente') content = renderVente();
+    else if (state.tab==='caisse') content = renderCaisse();
     else if (state.tab==='historique') content = renderHistorique();
     body = `<div class="container">${content}</div>`;
   }
-  root.innerHTML = renderHeader() + body + renderForm();
+  root.innerHTML = renderHeader() + body + renderForm() + renderToast();
+}
+
+function renderToast(){
+  if (!state.toast) return '';
+  const bg = state.toast.kind === 'error' ? 'var(--coral-deep)' : 'var(--sage)';
+  return `<div class="toast" style="background:${bg};">${ICONS.check}<span>${escapeHtml(state.toast.message)}</span></div>`;
 }
 
 loadAll();
