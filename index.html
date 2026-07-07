@@ -132,6 +132,14 @@
   .add-size-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
   .add-size-btn{border:1px dashed var(--line);background:#fff;border-radius:8px;padding:5px 9px;font-size:11.5px;cursor:pointer;color:var(--ink-soft);}
 
+  .color-block{border:1.5px solid var(--sky);border-radius:14px;padding:14px;margin-bottom:14px;background:#fff;}
+  .color-block-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .color-block-title{font-family:'Fraunces',serif;font-weight:600;font-size:14px;color:var(--sky-deep);}
+  .color-preview-row{display:flex;gap:10px;align-items:center;margin-bottom:10px;}
+  .discount-badge{display:inline-block;background:var(--coral);color:#fff;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;margin-left:6px;}
+  .price-preview{font-size:12px;color:var(--ink-soft);margin-top:-6px;margin-bottom:10px;}
+  .price-preview b{color:var(--coral-deep);font-size:14px;}
+
   .loading-screen{display:flex;align-items:center;justify-content:center;height:100vh;color:var(--ink-soft);font-size:14px;}
 
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);color:#fff;padding:12px 20px;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,0.2);display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;z-index:100;max-width:90vw;text-align:center;animation:toast-in 0.2s ease;}
@@ -209,6 +217,8 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const COLLECTIONS = ["T-shirts","Hoodies","Vestes zippées","Casquettes et bonnets","Sacs","Porte-clés motel","Pin's émaillés","Stickers"];
 const SIZE_ORDER = ["XS","S","M","L","XL","XXL","Unique"];
 const STANDARD_SIZES = ["XS","S","M","L","XL","XXL"];
+const MODES_REGLEMENT = ['CB','Espèces','Carte cadeau'];
+function todayStr(){ return new Date().toISOString().slice(0,10); }
 
 function sizeRank(t){
   const i = SIZE_ORDER.indexOf(t);
@@ -245,9 +255,12 @@ function escapeHtml(s){
 function uid(){ return Math.random().toString(36).slice(2,10); }
 function qrUrl(code, size){ return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(code)}`; }
 function randomCode(){ return 'BB-' + Math.floor(1000 + Math.random()*9000); }
+function prixRemise(color){
+  const prix = Number(color.prix) || 0;
+  const remise = Number(color.remise) || 0;
+  return +(prix * (1 - remise/100)).toFixed(2);
+}
 
-// Wraps a Supabase call with one automatic retry, to smooth over transient
-// network hiccups (observed as 522 timeouts) without failing the whole action.
 async function withRetry(fn, retries){
   retries = retries == null ? 1 : retries;
   try{ return await fn(); }
@@ -260,32 +273,30 @@ async function withRetry(fn, retries){
   }
 }
 
-const MODES_REGLEMENT = ['CB','Espèces','Carte cadeau'];
-function todayStr(){ return new Date().toISOString().slice(0,10); }
-
 // ---------- State ----------
 let state = {
   tab: 'dashboard',
-  articles: [], // { ...article fields, variants: [{id,taille,stock}] }
+  articles: [], // { id, nom, collection, seuil, colors:[{id,couleur,code,prix,remise,photo,variants:[{id,taille,stock}]}] }
   ventes: [],
-  clotures: [], // cloture_caisse rows
-  lieux: [], // [{id, nom}] dynamic, user-manageable sale locations
+  clotures: [],
+  lieux: [],
   loading: true,
   error: null,
   collectionFilter: 'Toutes',
   search: '',
   ventesearch: '',
-  panier: [], // {articleId, taille, qty}
+  stocksearch: '',
+  panier: [], // {colorId, taille, qty}
   lieuVente: 'Magasin',
   reglements: [{ mode: 'CB', montant: 0 }],
-  toast: null, // { message, kind }
-  saleConfirmation: null, // { message } shown inline in the cart panel
-  scanPendingArticle: null, // article id awaiting a size choice after a scan
+  toast: null,
+  saleConfirmation: null,
+  scanPendingColor: null,
   newLieuName: '',
   showLieuManager: false,
   showForm: false,
-  editing: null,
-  formVariants: [], // {key, dbId, taille, stock}
+  editing: null, // article being edited
+  formColors: [], // {key, dbId, couleur, code, prix, remise, photo, variants:[{key,dbId,taille,stock}]}
   confirmDelete: null,
   saving: false,
   caisseDate: todayStr(),
@@ -299,10 +310,15 @@ let state = {
 };
 
 function totalStock(article){
-  return (article.variants||[]).reduce((s,v) => s + v.stock, 0);
+  return article.colors.reduce((s,c) => s + c.variants.reduce((s2,v) => s2 + v.stock, 0), 0);
 }
-function lowVariants(article){
-  return (article.variants||[]).filter(v => v.stock <= article.seuil);
+function lowEntries(article){
+  const out = [];
+  article.colors.forEach(c => c.variants.forEach(v => { if (v.stock <= article.seuil) out.push({ color:c, variant:v }); }));
+  return out;
+}
+function stockValueOf(article){
+  return article.colors.reduce((s,c) => s + c.variants.reduce((s2,v) => s2 + v.stock, 0) * prixRemise(c), 0);
 }
 
 // ---------- Data loading ----------
@@ -310,7 +326,7 @@ async function loadAll(){
   state.loading = true; render();
   try{
     const [{ data: articles, error: e1 }, { data: ventes, error: e2 }, { data: clotures, error: e3 }, { data: lieux, error: e4 }] = await Promise.all([
-      withRetry(() => sb.from('articles').select('*, article_variants(*)').order('created_at', { ascending: false })),
+      withRetry(() => sb.from('articles').select('*, article_colors(*, article_variants(*))').order('created_at', { ascending: false })),
       withRetry(() => sb.from('ventes').select('*').order('date', { ascending: false }).limit(500)),
       withRetry(() => sb.from('cloture_caisse').select('*')),
       withRetry(() => sb.from('lieux_vente').select('*').order('created_at', { ascending: true }))
@@ -320,8 +336,11 @@ async function loadAll(){
     if (e3) throw e3;
     if (e4) throw e4;
     state.articles = (articles || []).map(a => ({
-      ...a,
-      variants: sortVariants((a.article_variants || []).map(v => ({ id: v.id, taille: v.taille, stock: v.stock })))
+      id: a.id, nom: a.nom, collection: a.collection, seuil: a.seuil,
+      colors: (a.article_colors || []).map(c => ({
+        id: c.id, couleur: c.couleur, code: c.code, prix: Number(c.prix), remise: Number(c.remise||0), photo: c.photo,
+        variants: sortVariants((c.article_variants || []).map(v => ({ id: v.id, taille: v.taille, stock: v.stock })))
+      }))
     }));
     state.ventes = ventes || [];
     state.clotures = clotures || [];
@@ -338,9 +357,39 @@ async function loadAll(){
   render();
 }
 
+// ---------- Flattened product cards (article x color) ----------
+function flattenCards(){
+  const cards = [];
+  state.articles.forEach(a => a.colors.forEach(c => cards.push({ article: a, color: c })));
+  return cards;
+}
+function matchesQuery(a, c, query){
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return a.nom.toLowerCase().includes(q) || (c.code||'').toLowerCase().includes(q) || (c.couleur||'').toLowerCase().includes(q);
+}
+function filteredCards(query){
+  return flattenCards().filter(({article:a, color:c}) => {
+    const matchCol = state.collectionFilter === 'Toutes' || a.collection === state.collectionFilter;
+    return matchCol && matchesQuery(a, c, query);
+  });
+}
+function findColorById(colorId){
+  for (const a of state.articles){
+    const c = a.colors.find(x => x.id === colorId);
+    if (c) return { article: a, color: c };
+  }
+  return null;
+}
+function findVariant(colorId, taille){
+  const found = findColorById(colorId);
+  return found ? found.color.variants.find(v => v.taille === taille) : null;
+}
+
 // ---------- Actions: navigation ----------
 function setTab(t){ state.tab = t; state.confirmDelete = null; render(); }
 function setCollectionFilter(c){ state.collectionFilter = c; render(); }
+
 function renderPreservingFocus(){
   const active = document.activeElement;
   const id = active && active.id;
@@ -351,7 +400,7 @@ function renderPreservingFocus(){
     if (el){
       el.focus();
       if (pos != null){
-        try { el.setSelectionRange(pos,pos); } catch(e) { /* not all input types support this */ }
+        try { el.setSelectionRange(pos,pos); } catch(e) {}
       }
     }
   }
@@ -367,7 +416,6 @@ function showToast(message, kind){
 
 function setLieuVente(l){ state.lieuVente = l; render(); }
 function toggleLieuManager(){ state.showLieuManager = !state.showLieuManager; render(); }
-
 function updateNewLieuName(v){ state.newLieuName = v; }
 async function addLieuVente(){
   const nom = (state.newLieuName || '').trim();
@@ -390,6 +438,339 @@ async function deleteLieuVente(id, nom){
   } catch(err){
     showToast('Erreur lors de la suppression : ' + err.message, 'error');
   }
+}
+
+// ---------- Scan to add (camera QR/barcode + hardware scanner input) ----------
+function lookupAndAddByCode(code){
+  const trimmed = (code || '').trim();
+  if (!trimmed) return;
+  const found = flattenCards().find(({color:c}) => (c.code||'').toLowerCase() === trimmed.toLowerCase());
+  if (!found){
+    showToast(`Aucun article trouvé pour le code "${trimmed}"`, 'error');
+    return;
+  }
+  const { article, color } = found;
+  const inStock = color.variants.filter(v => v.stock > 0);
+  if (color.variants.length === 1){
+    addToPanier(color.id, color.variants[0].taille);
+    showToast(`Ajouté au panier : ${article.nom} (${color.couleur})`, 'success');
+  } else if (inStock.length === 1){
+    addToPanier(color.id, inStock[0].taille);
+    showToast(`Ajouté au panier : ${article.nom} (${color.couleur}) — ${inStock[0].taille}`, 'success');
+  } else if (inStock.length === 0){
+    showToast(`"${article.nom}" (${color.couleur}) est en rupture sur toutes les tailles`, 'error');
+  } else {
+    state.scanPendingColor = color.id;
+    render();
+    const cartEl = document.getElementById('cart-panel');
+    if (cartEl) cartEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+function pickScanSize(colorId, taille){
+  addToPanier(colorId, taille);
+  state.scanPendingColor = null;
+  render();
+}
+function cancelScanPending(){ state.scanPendingColor = null; render(); }
+function onScanInputKeydown(e){
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    lookupAndAddByCode(e.target.value);
+    e.target.value = '';
+  }
+}
+function lookupAndEditByCode(code){
+  const trimmed = (code || '').trim();
+  if (!trimmed) return;
+  const found = flattenCards().find(({color:c}) => (c.code||'').toLowerCase() === trimmed.toLowerCase());
+  if (!found){
+    showToast(`Aucun article trouvé pour le code "${trimmed}"`, 'error');
+    return;
+  }
+  showToast(`Article trouvé : ${found.article.nom}`, 'success');
+  openEditForm(found.article.id);
+}
+function onStockScanInputKeydown(e){
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    lookupAndEditByCode(e.target.value);
+    e.target.value = '';
+  }
+}
+
+let html5QrCodeInstance = null;
+function openScanner(mode){
+  if (typeof Html5Qrcode === 'undefined'){
+    showToast('Le scanner ne peut pas se charger (connexion internet nécessaire).', 'error');
+    return;
+  }
+  const overlay = document.createElement('div');
+  overlay.id = 'scanner-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML = `
+    <div style="background:#FFFDF8;border-radius:16px;padding:16px;max-width:420px;width:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-family:'Fraunces',serif;font-weight:600;color:#3B362C;">Scanner un article</div>
+        <button id="scanner-close-btn" style="background:none;border:none;font-size:22px;cursor:pointer;color:#3B362C;line-height:1;">×</button>
+      </div>
+      <div id="qr-reader" style="width:100%;"></div>
+      <div style="font-size:12px;color:#7A7362;margin-top:8px;">Vise le QR code (ou code-barres) de l'article avec la caméra.</div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('scanner-close-btn').onclick = closeScannerUI;
+
+  html5QrCodeInstance = new Html5Qrcode('qr-reader');
+  html5QrCodeInstance.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 230, height: 230 } },
+    (decodedText) => {
+      if (mode === 'stock') lookupAndEditByCode(decodedText);
+      else lookupAndAddByCode(decodedText);
+      closeScannerUI();
+    },
+    () => {}
+  ).catch((err) => {
+    showToast("Impossible d'accéder à la caméra : vérifie les autorisations du navigateur.", 'error');
+    closeScannerUI();
+    console.error(err);
+  });
+}
+function closeScannerUI(){
+  const overlay = document.getElementById('scanner-overlay');
+  const inst = html5QrCodeInstance;
+  html5QrCodeInstance = null;
+  if (inst){
+    inst.stop().then(() => inst.clear()).catch(() => {});
+  }
+  if (overlay) overlay.remove();
+}
+
+// ---------- Actions: article form ----------
+function newColorBlock(){
+  return { key: uid(), dbId: null, couleur: '', code: randomCode(), prix: '', remise: 0, photo: '', variants: [{ key: uid(), dbId: null, taille: 'Unique', stock: 0 }] };
+}
+function openAddForm(){
+  state.editing = null;
+  state.formColors = [newColorBlock()];
+  state.showForm = true;
+  render();
+}
+function openEditForm(articleId){
+  const a = state.articles.find(x => x.id === articleId);
+  if (!a) return;
+  state.editing = a;
+  state.formColors = a.colors.map(c => ({
+    key: uid(), dbId: c.id, couleur: c.couleur, code: c.code, prix: c.prix, remise: c.remise, photo: c.photo,
+    variants: c.variants.map(v => ({ key: uid(), dbId: v.id, taille: v.taille, stock: v.stock }))
+  }));
+  state.showForm = true;
+  render();
+}
+function closeForm(){ state.showForm = false; state.editing = null; state.formColors = []; render(); }
+
+function addColorBlock(){ state.formColors.push(newColorBlock()); render(); }
+function removeColorBlock(colorKey){
+  state.formColors = state.formColors.filter(c => c.key !== colorKey);
+  if (state.formColors.length === 0) state.formColors.push(newColorBlock());
+  render();
+}
+function findFormColor(colorKey){ return state.formColors.find(c => c.key === colorKey); }
+function updateColorField(colorKey, field, value){
+  const c = findFormColor(colorKey);
+  if (!c) return;
+  c[field] = value;
+  renderPreservingFocus();
+}
+function regenerateColorCode(colorKey){
+  const c = findFormColor(colorKey);
+  if (!c) return;
+  c.code = randomCode();
+  render();
+}
+
+function addVariantRowToColor(colorKey, taille){
+  const c = findFormColor(colorKey);
+  if (!c) return;
+  c.variants.push({ key: uid(), dbId: null, taille: taille || '', stock: 0 });
+  render();
+}
+function addAllStandardSizesToColor(colorKey){
+  const c = findFormColor(colorKey);
+  if (!c) return;
+  const existing = new Set(c.variants.map(v => v.taille));
+  STANDARD_SIZES.forEach(t => { if (!existing.has(t)) c.variants.push({ key: uid(), dbId: null, taille: t, stock: 0 }); });
+  render();
+}
+function removeVariantRowFromColor(colorKey, variantKey){
+  const c = findFormColor(colorKey);
+  if (!c) return;
+  c.variants = c.variants.filter(v => v.key !== variantKey);
+  render();
+}
+function updateColorVariantField(colorKey, variantKey, field, value){
+  const c = findFormColor(colorKey);
+  if (!c) return;
+  const v = c.variants.find(x => x.key === variantKey);
+  if (!v) return;
+  v[field] = field === 'stock' ? (parseInt(value) || 0) : value;
+}
+
+async function saveArticleForm(e){
+  e.preventDefault();
+  const f = e.target;
+  const articlePayload = {
+    nom: f.nom.value.trim(),
+    collection: f.collection.value,
+    seuil: parseInt(f.seuil.value) || 0,
+  };
+  if (!articlePayload.nom || state.formColors.length === 0) return;
+  const colorsToSave = state.formColors.filter(c => c.couleur.trim() !== '' && c.code.trim() !== '');
+  if (colorsToSave.length === 0){
+    alert('Ajoute au moins une couleur avec un nom et un code.');
+    return;
+  }
+
+  state.saving = true; render();
+  try{
+    let articleId;
+    if (state.editing){
+      articleId = state.editing.id;
+      const { error } = await sb.from('articles').update(articlePayload).eq('id', articleId);
+      if (error) throw error;
+
+      const originalColorIds = new Set(state.editing.colors.map(c => c.id));
+      const keptColorIds = new Set(colorsToSave.filter(c => c.dbId).map(c => c.dbId));
+      const colorsToDelete = [...originalColorIds].filter(id => !keptColorIds.has(id));
+      for (const id of colorsToDelete){
+        const { error: de } = await sb.from('article_colors').delete().eq('id', id);
+        if (de) throw de;
+      }
+    } else {
+      const { data, error } = await sb.from('articles').insert(articlePayload).select().single();
+      if (error) throw error;
+      articleId = data.id;
+    }
+
+    for (const c of colorsToSave){
+      const variantsToSave = c.variants.filter(v => v.taille.trim() !== '');
+      if (variantsToSave.length === 0) continue;
+      const colorPayload = {
+        article_id: articleId,
+        couleur: c.couleur.trim(),
+        code: c.code.trim(),
+        prix: parseFloat(c.prix) || 0,
+        remise: parseFloat(c.remise) || 0,
+        photo: c.photo.trim(),
+      };
+      let colorId;
+      if (c.dbId){
+        colorId = c.dbId;
+        const { error: ce } = await sb.from('article_colors').update(colorPayload).eq('id', colorId);
+        if (ce) throw ce;
+        const originalColor = state.editing.colors.find(oc => oc.id === c.dbId);
+        const originalVariantIds = new Set((originalColor ? originalColor.variants : []).map(v => v.id));
+        const keptVariantIds = new Set(variantsToSave.filter(v => v.dbId).map(v => v.dbId));
+        const variantsToDelete = [...originalVariantIds].filter(id => !keptVariantIds.has(id));
+        for (const id of variantsToDelete){
+          const { error: dve } = await sb.from('article_variants').delete().eq('id', id);
+          if (dve) throw dve;
+        }
+      } else {
+        const { data: cdata, error: ce } = await sb.from('article_colors').insert(colorPayload).select().single();
+        if (ce) throw ce;
+        colorId = cdata.id;
+      }
+      for (const v of variantsToSave){
+        if (v.dbId){
+          const { error: ue } = await sb.from('article_variants').update({ taille: v.taille.trim(), stock: v.stock }).eq('id', v.dbId);
+          if (ue) throw ue;
+        } else {
+          const { error: ie } = await sb.from('article_variants').insert({ color_id: colorId, taille: v.taille.trim(), stock: v.stock });
+          if (ie) throw ie;
+        }
+      }
+    }
+
+    state.showForm = false;
+    state.editing = null;
+    state.formColors = [];
+    await loadAll();
+  } catch(err){
+    console.error(err);
+    alert("Erreur lors de l'enregistrement : " + err.message);
+  }
+  state.saving = false;
+  render();
+}
+
+function askDelete(id){ state.confirmDelete = id; render(); }
+async function deleteArticle(id){
+  try{
+    const { error } = await sb.from('articles').delete().eq('id', id);
+    if (error) throw error;
+    const removedColorIds = new Set((state.articles.find(a=>a.id===id)?.colors||[]).map(c=>c.id));
+    state.panier = state.panier.filter(p => !removedColorIds.has(p.colorId));
+    await loadAll();
+  } catch(err){
+    alert("Erreur lors de la suppression : " + err.message);
+  }
+  state.confirmDelete = null;
+  render();
+}
+
+async function adjustVariantStock(variantId, delta){
+  let targetVariant = null;
+  for (const a of state.articles){
+    for (const c of a.colors){
+      const v = c.variants.find(x => x.id === variantId);
+      if (v){ targetVariant = v; break; }
+    }
+    if (targetVariant) break;
+  }
+  if (!targetVariant) return;
+  const newStock = Math.max(0, targetVariant.stock + delta);
+  targetVariant.stock = newStock;
+  render();
+  try{
+    const { error } = await sb.from('article_variants').update({ stock: newStock }).eq('id', variantId);
+    if (error) throw error;
+  } catch(err){
+    console.error(err);
+    await loadAll();
+  }
+}
+
+// ---------- Actions: vente / panier ----------
+function addToPanier(colorId, taille){
+  const variant = findVariant(colorId, taille);
+  if (!variant) return;
+  const existing = state.panier.find(p => p.colorId === colorId && p.taille === taille);
+  const currentQty = existing ? existing.qty : 0;
+  if (currentQty >= variant.stock) return;
+  if (existing) existing.qty += 1;
+  else state.panier.push({ colorId, taille, qty: 1 });
+  recalcLastReglement();
+  render();
+  const cartEl = document.getElementById('cart-panel');
+  if (cartEl && window.innerWidth < 721) cartEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function changeQty(colorId, taille, delta){
+  const variant = findVariant(colorId, taille);
+  const p = state.panier.find(x => x.colorId === colorId && x.taille === taille);
+  if (!p || !variant) return;
+  p.qty = Math.min(variant.stock, Math.max(0, p.qty + delta));
+  state.panier = state.panier.filter(x => x.qty > 0);
+  recalcLastReglement();
+  render();
+}
+function panierDetail(){
+  return state.panier.map(p => {
+    const found = findColorById(p.colorId);
+    return found ? { ...p, article: found.article, color: found.color } : null;
+  }).filter(Boolean);
+}
+function panierTotal(){
+  return panierDetail().reduce((s,p) => s + prixRemise(p.color) * p.qty, 0);
 }
 
 // ---------- Multi-payment (reglements) ----------
@@ -428,252 +809,6 @@ function reglementsRemaining(){
   return +(panierTotal() - reglementsTotal()).toFixed(2);
 }
 
-// ---------- Actions: article form ----------
-function openAddForm(){
-  state.editing = null;
-  state.formVariants = [{ key: uid(), dbId: null, taille: 'Unique', stock: 0 }];
-  state.showForm = true;
-  render();
-}
-function openEditForm(id){
-  const a = state.articles.find(x => x.id === id);
-  if (!a) return;
-  state.editing = a;
-  state.formVariants = a.variants.map(v => ({ key: uid(), dbId: v.id, taille: v.taille, stock: v.stock }));
-  state.showForm = true;
-  render();
-}
-function closeForm(){ state.showForm = false; state.editing = null; state.formVariants = []; render(); }
-
-function addVariantRow(taille){
-  state.formVariants.push({ key: uid(), dbId: null, taille: taille || '', stock: 0 });
-  render();
-}
-function addAllStandardSizes(){
-  const existing = new Set(state.formVariants.map(v => v.taille));
-  STANDARD_SIZES.forEach(t => {
-    if (!existing.has(t)) state.formVariants.push({ key: uid(), dbId: null, taille: t, stock: 0 });
-  });
-  render();
-}
-function removeVariantRow(key){
-  state.formVariants = state.formVariants.filter(v => v.key !== key);
-  render();
-}
-function updateVariantField(key, field, value){
-  const row = state.formVariants.find(v => v.key === key);
-  if (!row) return;
-  row[field] = field === 'stock' ? (parseInt(value) || 0) : value;
-}
-
-async function saveArticleForm(e){
-  e.preventDefault();
-  const f = e.target;
-  const payload = {
-    code: f.code.value.trim() || randomCode(),
-    nom: f.nom.value.trim(),
-    collection: f.collection.value,
-    couleur: f.couleur.value.trim(),
-    prix: parseFloat(f.prix.value) || 0,
-    seuil: parseInt(f.seuil.value) || 0,
-    photo: f.photo.value.trim(),
-  };
-  const variantsToSave = state.formVariants.filter(v => v.taille.trim() !== '');
-  if (!payload.nom || variantsToSave.length === 0) return;
-
-  state.saving = true; render();
-  try{
-    let articleId;
-    if (state.editing){
-      articleId = state.editing.id;
-      const { error } = await sb.from('articles').update(payload).eq('id', articleId);
-      if (error) throw error;
-
-      const originalIds = new Set(state.editing.variants.map(v => v.id));
-      const keptIds = new Set(variantsToSave.filter(v => v.dbId).map(v => v.dbId));
-      const toDelete = [...originalIds].filter(id => !keptIds.has(id));
-      for (const id of toDelete){
-        const { error: de } = await sb.from('article_variants').delete().eq('id', id);
-        if (de) throw de;
-      }
-      for (const v of variantsToSave){
-        if (v.dbId){
-          const { error: ue } = await sb.from('article_variants').update({ taille: v.taille.trim(), stock: v.stock }).eq('id', v.dbId);
-          if (ue) throw ue;
-        } else {
-          const { error: ie } = await sb.from('article_variants').insert({ article_id: articleId, taille: v.taille.trim(), stock: v.stock });
-          if (ie) throw ie;
-        }
-      }
-    } else {
-      const { data, error } = await sb.from('articles').insert(payload).select().single();
-      if (error) throw error;
-      articleId = data.id;
-      const rows = variantsToSave.map(v => ({ article_id: articleId, taille: v.taille.trim(), stock: v.stock }));
-      const { error: ie } = await sb.from('article_variants').insert(rows);
-      if (ie) throw ie;
-    }
-    state.showForm = false;
-    state.editing = null;
-    state.formVariants = [];
-    await loadAll();
-  } catch(err){
-    console.error(err);
-    alert("Erreur lors de l'enregistrement : " + err.message);
-  }
-  state.saving = false;
-  render();
-}
-
-function askDelete(id){ state.confirmDelete = id; render(); }
-async function deleteArticle(id){
-  try{
-    const { error } = await sb.from('articles').delete().eq('id', id);
-    if (error) throw error;
-    state.panier = state.panier.filter(p => p.articleId !== id);
-    await loadAll();
-  } catch(err){
-    alert("Erreur lors de la suppression : " + err.message);
-  }
-  state.confirmDelete = null;
-  render();
-}
-
-// Quick inline +/- stock adjust directly from the Stock tab (no need to open the form)
-async function adjustVariantStock(variantId, delta){
-  const article = state.articles.find(a => (a.variants||[]).some(v => v.id === variantId));
-  if (!article) return;
-  const variant = article.variants.find(v => v.id === variantId);
-  const newStock = Math.max(0, variant.stock + delta);
-  variant.stock = newStock; // optimistic
-  render();
-  try{
-    const { error } = await sb.from('article_variants').update({ stock: newStock }).eq('id', variantId);
-    if (error) throw error;
-  } catch(err){
-    console.error(err);
-    await loadAll();
-  }
-}
-
-// ---------- Actions: vente / panier ----------
-function findVariant(articleId, taille){
-  const a = state.articles.find(x => x.id === articleId);
-  return a ? a.variants.find(v => v.taille === taille) : null;
-}
-// ---------- Scan to add (camera QR/barcode + hardware scanner input) ----------
-function lookupAndAddByCode(code){
-  const trimmed = (code || '').trim();
-  if (!trimmed) return;
-  const article = state.articles.find(a => (a.code||'').toLowerCase() === trimmed.toLowerCase());
-  if (!article){
-    showToast(`Aucun article trouvé pour le code "${trimmed}"`, 'error');
-    return;
-  }
-  const inStock = article.variants.filter(v => v.stock > 0);
-  if (article.variants.length === 1){
-    addToPanier(article.id, article.variants[0].taille);
-    showToast(`Ajouté au panier : ${article.nom}`, 'success');
-  } else if (inStock.length === 1){
-    addToPanier(article.id, inStock[0].taille);
-    showToast(`Ajouté au panier : ${article.nom} (${inStock[0].taille})`, 'success');
-  } else if (inStock.length === 0){
-    showToast(`"${article.nom}" est en rupture de stock sur toutes les tailles`, 'error');
-  } else {
-    state.scanPendingArticle = article.id;
-    render();
-    const cartEl = document.getElementById('cart-panel');
-    if (cartEl) cartEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-}
-function pickScanSize(articleId, taille){
-  addToPanier(articleId, taille);
-  state.scanPendingArticle = null;
-  render();
-}
-function cancelScanPending(){ state.scanPendingArticle = null; render(); }
-function onScanInputKeydown(e){
-  if (e.key === 'Enter'){
-    e.preventDefault();
-    lookupAndAddByCode(e.target.value);
-    e.target.value = '';
-  }
-}
-
-let html5QrCodeInstance = null;
-function openScanner(){
-  if (typeof Html5Qrcode === 'undefined'){
-    showToast('Le scanner ne peut pas se charger (connexion internet nécessaire).', 'error');
-    return;
-  }
-  const overlay = document.createElement('div');
-  overlay.id = 'scanner-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;';
-  overlay.innerHTML = `
-    <div style="background:#FFFDF8;border-radius:16px;padding:16px;max-width:420px;width:100%;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <div style="font-family:'Fraunces',serif;font-weight:600;color:#3B362C;">Scanner un article</div>
-        <button id="scanner-close-btn" style="background:none;border:none;font-size:22px;cursor:pointer;color:#3B362C;line-height:1;">×</button>
-      </div>
-      <div id="qr-reader" style="width:100%;"></div>
-      <div style="font-size:12px;color:#7A7362;margin-top:8px;">Vise le QR code (ou code-barres) de l'article avec la caméra.</div>
-    </div>`;
-  document.body.appendChild(overlay);
-  document.getElementById('scanner-close-btn').onclick = closeScannerUI;
-
-  html5QrCodeInstance = new Html5Qrcode('qr-reader');
-  html5QrCodeInstance.start(
-    { facingMode: 'environment' },
-    { fps: 10, qrbox: { width: 230, height: 230 } },
-    (decodedText) => { lookupAndAddByCode(decodedText); closeScannerUI(); },
-    () => { /* per-frame no-match, ignore */ }
-  ).catch((err) => {
-    showToast("Impossible d'accéder à la caméra : vérifie les autorisations du navigateur.", 'error');
-    closeScannerUI();
-    console.error(err);
-  });
-}
-function closeScannerUI(){
-  const overlay = document.getElementById('scanner-overlay');
-  const inst = html5QrCodeInstance;
-  html5QrCodeInstance = null;
-  if (inst){
-    inst.stop().then(() => inst.clear()).catch(() => {});
-  }
-  if (overlay) overlay.remove();
-}
-
-function addToPanier(articleId, taille){
-  const variant = findVariant(articleId, taille);
-  if (!variant) return;
-  const existing = state.panier.find(p => p.articleId === articleId && p.taille === taille);
-  const currentQty = existing ? existing.qty : 0;
-  if (currentQty >= variant.stock) return;
-  if (existing) existing.qty += 1;
-  else state.panier.push({ articleId, taille, qty: 1 });
-  recalcLastReglement();
-  render();
-  const cartEl = document.getElementById('cart-panel');
-  if (cartEl && window.innerWidth < 721) cartEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-function changeQty(articleId, taille, delta){
-  const variant = findVariant(articleId, taille);
-  const p = state.panier.find(x => x.articleId === articleId && x.taille === taille);
-  if (!p || !variant) return;
-  p.qty = Math.min(variant.stock, Math.max(0, p.qty + delta));
-  state.panier = state.panier.filter(x => x.qty > 0);
-  recalcLastReglement();
-  render();
-}
-function panierDetail(){
-  return state.panier.map(p => ({
-    ...p,
-    article: state.articles.find(a => a.id === p.articleId)
-  })).filter(p => p.article);
-}
-function panierTotal(){
-  return panierDetail().reduce((s,p) => s + p.article.prix * p.qty, 0);
-}
 async function encaisser(){
   const detail = panierDetail();
   if (detail.length === 0) return;
@@ -682,7 +817,7 @@ async function encaisser(){
     alert("Le total des règlements (" + euros(reglementsTotal()) + ") ne correspond pas au total de la vente (" + euros(total) + "). Ajuste les montants avant d'encaisser.");
     return;
   }
-  const items = detail.map(p => ({ nom: p.article.nom, taille: p.taille, qty: p.qty, prixUnitaire: p.article.prix }));
+  const items = detail.map(p => ({ nom: p.article.nom, couleur: p.color.couleur, taille: p.taille, qty: p.qty, prixUnitaire: prixRemise(p.color) }));
   const reglementsToSave = state.reglements.map(r => ({ mode: r.mode, montant: parseFloat(r.montant) || 0 }));
   const lieu = state.lieuVente;
   state.saving = true; render();
@@ -690,7 +825,7 @@ async function encaisser(){
     const { error: e1 } = await withRetry(() => sb.from('ventes').insert({ date: new Date().toISOString(), items, total, reglements: reglementsToSave, lieu_vente: lieu }));
     if (e1) throw e1;
     for (const p of detail){
-      const variant = findVariant(p.articleId, p.taille);
+      const variant = findVariant(p.colorId, p.taille);
       const { error: e2 } = await withRetry(() => sb.from('article_variants').update({ stock: variant.stock - p.qty }).eq('id', variant.id));
       if (e2) throw e2;
     }
@@ -712,26 +847,111 @@ async function encaisser(){
   render();
 }
 
-// ---------- Filtering ----------
-function matchesQuery(a, query){
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  return a.nom.toLowerCase().includes(q) || (a.code||'').toLowerCase().includes(q);
+// ---------- Caisse (end-of-day register check) ----------
+function dateOnly(iso){ return String(iso).slice(0,10); }
+function findCloture(date, lieu){
+  return state.clotures.find(c => c.date === date && c.lieu_vente === lieu) || null;
 }
-function filteredArticles(query){
-  return state.articles.filter(a => {
-    const matchCol = state.collectionFilter === 'Toutes' || a.collection === state.collectionFilter;
-    return matchCol && matchesQuery(a, query);
+function setCaisseDate(d){ state.caisseDate = d; prefillCaisseForm(); render(); }
+function setCaisseLieu(l){ state.caisseLieu = l; prefillCaisseForm(); render(); }
+function prefillCaisseForm(){
+  const c = findCloture(state.caisseDate, state.caisseLieu);
+  state.caisseFondCaisse = c ? String(c.fond_caisse) : '';
+  state.caisseComptageReel = c && c.comptage_reel != null ? String(c.comptage_reel) : '';
+  state.caisseNote = c ? (c.note || '') : '';
+}
+function updateCaisseField(field, value){ state[field] = value; renderPreservingFocus(); }
+function ventesForCaisse(){
+  return state.ventes.filter(v => v.lieu_vente === state.caisseLieu && dateOnly(v.date) === state.caisseDate);
+}
+function ventesForDateAllLieux(){
+  return state.ventes.filter(v => dateOnly(v.date) === state.caisseDate);
+}
+function reglementTotalsFor(rows){
+  const totals = {};
+  MODES_REGLEMENT.forEach(m => totals[m] = 0);
+  rows.forEach(v => (v.reglements||[]).forEach(r => { totals[r.mode] = (totals[r.mode] || 0) + Number(r.montant); }));
+  return totals;
+}
+async function saveCloture(){
+  const fond = parseFloat(state.caisseFondCaisse) || 0;
+  const comptage = state.caisseComptageReel === '' ? null : (parseFloat(state.caisseComptageReel) || 0);
+  state.saving = true; render();
+  try{
+    const { error } = await withRetry(() => sb.from('cloture_caisse').upsert({
+      date: state.caisseDate, lieu_vente: state.caisseLieu, fond_caisse: fond, comptage_reel: comptage, note: state.caisseNote || null,
+    }, { onConflict: 'date,lieu_vente' }));
+    if (error) throw error;
+    await loadAll();
+    showToast('Clôture de caisse enregistrée pour le ' + new Date(state.caisseDate).toLocaleDateString('fr-FR') + ' · ' + state.caisseLieu, 'success');
+  } catch(err){
+    console.error(err);
+    showToast("Erreur lors de l'enregistrement de la clôture : " + err.message, 'error');
+  }
+  state.saving = false;
+  render();
+}
+
+// ---------- Excel export ----------
+function setExportRange(kind){
+  const now = new Date();
+  let from, to;
+  if (kind === 'semaine'){
+    const day = (now.getDay() + 6) % 7;
+    from = new Date(now); from.setDate(now.getDate() - day);
+    to = new Date(now);
+  } else if (kind === 'mois'){
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+    to = new Date(now);
+  } else { from = null; to = null; }
+  state.exportFrom = from ? from.toISOString().slice(0,10) : '';
+  state.exportTo = to ? to.toISOString().slice(0,10) : '';
+  render();
+}
+function setExportLieu(l){ state.exportLieu = l; render(); }
+function updateExportField(field, value){ state[field] = value; renderPreservingFocus(); }
+function ventesForExport(){
+  return state.ventes.filter(v => {
+    const d = dateOnly(v.date);
+    if (state.exportFrom && d < state.exportFrom) return false;
+    if (state.exportTo && d > state.exportTo) return false;
+    if (state.exportLieu !== 'Tous' && v.lieu_vente !== state.exportLieu) return false;
+    return true;
   });
+}
+function downloadVentesAsExcel(rows, filenameLabel){
+  if (rows.length === 0){ showToast('Aucune vente à exporter pour cette sélection.', 'error'); return; }
+  const data = rows.map(v => {
+    const d = new Date(v.date);
+    const reglementsStr = (v.reglements||[]).map(r => `${r.mode}: ${Number(r.montant).toFixed(2)}€`).join(' + ');
+    const articlesStr = (v.items||[]).map(it => `${it.qty}x ${it.nom}${it.couleur?' ('+it.couleur+')':''}${it.taille?' - '+it.taille:''}`).join(', ');
+    return {
+      'Date': d.toLocaleDateString('fr-FR'), 'Heure': d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),
+      'Lieu de vente': v.lieu_vente || '', 'Articles': articlesStr,
+      'Nb articles': (v.items||[]).reduce((s,it)=>s+it.qty,0), 'Total (€)': Number(v.total), 'Règlements': reglementsStr,
+    };
+  });
+  const totalGeneral = rows.reduce((s,v)=>s+Number(v.total),0);
+  data.push({ 'Date':'', 'Heure':'', 'Lieu de vente':'', 'Articles':'', 'Nb articles':'', 'Total (€)': totalGeneral, 'Règlements': 'TOTAL' });
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:11},{wch:7},{wch:16},{wch:45},{wch:10},{wch:11},{wch:28}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Ventes');
+  XLSX.writeFile(wb, `ventes-bebeach-${filenameLabel}.xlsx`);
+}
+function exportVentesExcel(){
+  const label = (state.exportFrom || state.exportTo) ? `${state.exportFrom||'debut'}_au_${state.exportTo||'aujourdhui'}` : 'toutes';
+  downloadVentesAsExcel(ventesForExport(), label);
+}
+function exportVentesDuJourCaisse(){
+  downloadVentesAsExcel(ventesForCaisse(), `${state.caisseDate}_${state.caisseLieu}`.replace(/\s+/g,'-'));
 }
 
 // ---------- Render helpers ----------
 function PhotoSafe(photo, alt, size, radius){
   radius = radius || 12;
   const style = `width:${size}px;height:${size}px;border-radius:${radius}px;`;
-  if (!photo){
-    return `<div class="thumb thumb-fallback" style="${style}">${ICONS.imageOff}</div>`;
-  }
+  if (!photo) return `<div class="thumb thumb-fallback" style="${style}">${ICONS.imageOff}</div>`;
   return `<img class="thumb" src="${escapeHtml(photo)}" alt="${escapeHtml(alt)}" style="${style}" />`;
 }
 document.addEventListener('error', function(e){
@@ -748,19 +968,24 @@ document.addEventListener('error', function(e){
 function Pill(label, active, onclick){
   return `<button class="pill ${active ? 'active' : ''}" onclick="${onclick}">${escapeHtml(label)}</button>`;
 }
-
 function SearchBox(id, value, oninput, placeholder){
   return `<div class="search-wrap">
     ${ICONS.search}
     <input id="${id}" class="input" style="padding-left:32px;" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(value)}" oninput="${oninput}(event)" />
   </div>`;
 }
-
 function CollectionPills(){
   return `<div class="pills">
     ${Pill('Toutes', state.collectionFilter==='Toutes', "setCollectionFilter('Toutes')")}
     ${COLLECTIONS.map(c => Pill(c, state.collectionFilter===c, `setCollectionFilter('${c.replace(/'/g,"\\'")}')`)).join('')}
   </div>`;
+}
+function priceDisplay(color){
+  const finalPrice = prixRemise(color);
+  if (color.remise > 0){
+    return `<span style="text-decoration:line-through;color:var(--ink-soft);font-size:11.5px;margin-right:4px;">${euros(color.prix)}</span><span class="price">${euros(finalPrice)}</span><span class="discount-badge">-${color.remise}%</span>`;
+  }
+  return `<span class="price">${euros(finalPrice)}</span>`;
 }
 
 // ---------- Views ----------
@@ -788,10 +1013,10 @@ function renderHeader(){
 }
 
 function renderDashboard(){
-  const stockValue = state.articles.reduce((s,a) => s + a.prix * totalStock(a), 0);
+  const stockValue = state.articles.reduce((s,a) => s + stockValueOf(a), 0);
   const totalCA = state.ventes.reduce((s,v) => s + Number(v.total), 0);
   const lowStockEntries = [];
-  state.articles.forEach(a => lowVariants(a).forEach(v => lowStockEntries.push({ article: a, variant: v })));
+  state.articles.forEach(a => lowEntries(a).forEach(({color,variant}) => lowStockEntries.push({ article:a, color, variant })));
   const today = new Date().toDateString();
   const ventesAuj = state.ventes.filter(v => new Date(v.date).toDateString() === today);
   const totalStockCount = state.articles.reduce((s,a) => s + totalStock(a), 0);
@@ -831,10 +1056,10 @@ function renderDashboard(){
       </div>
       <div class="panel">
         <div class="panel-title">${ICONS.alert} Stock bas</div>
-        ${lowStockEntries.length===0 ? '<div class="muted">Aucune alerte, tout est bien approvisionné.</div>' : lowStockEntries.map(({article,variant}) => `
+        ${lowStockEntries.length===0 ? '<div class="muted">Aucune alerte, tout est bien approvisionné.</div>' : lowStockEntries.map(({article,color,variant}) => `
           <div class="lowstock-row">
-            ${PhotoSafe(article.photo, article.nom, 34, 8)}
-            <div style="flex:1;">${escapeHtml(article.nom)} <span class="muted">· ${escapeHtml(variant.taille)}</span></div>
+            ${PhotoSafe(color.photo, article.nom, 34, 8)}
+            <div style="flex:1;">${escapeHtml(article.nom)} <span class="muted">· ${escapeHtml(color.couleur)} · ${escapeHtml(variant.taille)}</span></div>
             <span style="color:var(--coral-deep);font-weight:700;">${variant.stock} restant${variant.stock>1?'s':''}</span>
           </div>`).join('')}
       </div>
@@ -843,31 +1068,35 @@ function renderDashboard(){
 }
 
 function renderStock(){
-  const list = filteredArticles(state.search);
+  const cards = filteredCards(state.stocksearch);
   return `
   <div style="margin-top:8px;">
     <div class="toolbar">
-      ${SearchBox('search-input', state.search, 'onSearchInput', 'Rechercher par nom ou code...')}
+      ${SearchBox('stock-search-input', state.stocksearch, 'onStockSearchInput', 'Rechercher par nom, code ou couleur...')}
+      <div style="display:flex;gap:6px;">
+        <input id="stock-scan-input" class="input" style="max-width:220px;" placeholder="Scanner pour éditer..." onkeydown="onStockScanInputKeydown(event)" />
+        <button type="button" class="btn btn-outline" style="padding:0 12px;" onclick="openScanner('stock')" title="Scanner avec la caméra">${ICONS.camera}</button>
+      </div>
       <button class="btn btn-coral" onclick="openAddForm()" style="display:flex;align-items:center;gap:6px;">${ICONS.plus} Ajouter un article</button>
     </div>
     ${CollectionPills()}
     <div class="stock-grid">
-      ${list.map(a => `
+      ${cards.map(({article:a, color:c}) => `
         <div class="stock-card">
           <div class="stock-top">
-            ${PhotoSafe(a.photo, a.nom, 64, 12)}
+            ${PhotoSafe(c.photo, a.nom, 64, 12)}
             <div style="flex:1;min-width:0;">
               <div class="stock-name">${escapeHtml(a.nom)}</div>
-              <div class="stock-meta">${escapeHtml(a.couleur||'')}</div>
-              <span class="price">${euros(a.prix)}</span>
+              <div class="stock-meta">${escapeHtml(c.couleur||'')}</div>
+              ${priceDisplay(c)}
               <div class="stock-code-row">
-                <img src="${qrUrl(a.code, 40)}" width="40" height="40" alt="QR ${escapeHtml(a.code)}" style="border-radius:4px;" />
-                <span class="stock-code">${escapeHtml(a.code)}</span>
+                <img src="${qrUrl(c.code, 40)}" width="40" height="40" alt="QR ${escapeHtml(c.code)}" style="border-radius:4px;" />
+                <span class="stock-code">${escapeHtml(c.code)}</span>
               </div>
             </div>
           </div>
           <div class="variant-rows">
-            ${a.variants.map(v => `
+            ${c.variants.map(v => `
               <div class="variant-row">
                 <span class="variant-size">${escapeHtml(v.taille)}</span>
                 <button class="mini-btn" onclick="adjustVariantStock('${v.id}',-1)">${ICONS.minus}</button>
@@ -883,9 +1112,10 @@ function renderStock(){
           </div>
         </div>`).join('')}
     </div>
-    ${list.length===0 ? '<div class="muted" style="margin-top:20px;">Aucun article ne correspond.</div>' : ''}
+    ${cards.length===0 ? '<div class="muted" style="margin-top:20px;">Aucun article ne correspond.</div>' : ''}
   </div>`;
 }
+function onStockSearchInput(e){ state.stocksearch = e.target.value; renderPreservingFocus(); }
 
 function renderReglementsEditor(){
   const remaining = reglementsRemaining();
@@ -900,32 +1130,12 @@ function renderReglementsEditor(){
           </select>
           ${idx < lastIdx
             ? `<input id="reg-montant-${idx}" class="input" type="text" inputmode="decimal" style="flex:1;" value="${r.montant}" oninput="updateReglementMontant(${idx}, this.value)" />`
-            : `<span style="flex:1;font-weight:600;text-align:right;padding-right:6px;" title="${lastIdx>0?'Calculé automatiquement':''}">${euros(r.montant)}${lastIdx>0?' <span class=\"muted\" style=\"font-weight:400;font-size:11px;\">(reste)</span>':''}</span>`}
+            : `<span style="flex:1;font-weight:600;text-align:right;padding-right:6px;">${euros(r.montant)}${lastIdx>0?' <span class="muted" style="font-weight:400;font-size:11px;">(reste)</span>':''}</span>`}
           ${state.reglements.length > 1 ? `<button type="button" class="mini-btn" style="color:var(--coral-deep);" onclick="removeReglementLine(${idx})">${ICONS.x}</button>` : ''}
         </div>`).join('')}
     </div>
     <button type="button" class="add-size-btn" style="margin-top:6px;align-self:flex-start;" onclick="addReglementLine()">+ Ajouter un règlement (paiement partagé)</button>
     ${remaining < -0.004 ? `<div style="font-size:12px;margin-top:4px;color:var(--coral-deep);font-weight:600;">Trop réparti de ${euros(-remaining)}, ajuste un montant</div>` : ''}
-  </div>`;
-}
-
-function renderScanSizePicker(){
-  if (!state.scanPendingArticle) return '';
-  const article = state.articles.find(a => a.id === state.scanPendingArticle);
-  if (!article) return '';
-  return `
-  <div style="border:2px solid var(--sky);border-radius:14px;padding:12px;margin-bottom:14px;background:#fff;">
-    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
-      ${PhotoSafe(article.photo, article.nom, 44, 10)}
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:13.5px;">${escapeHtml(article.nom)}</div>
-        <div class="muted" style="font-size:12px;">Choisis la taille à ajouter</div>
-      </div>
-      <button type="button" class="mini-btn" onclick="cancelScanPending()">${ICONS.x}</button>
-    </div>
-    <div class="size-chips">
-      ${article.variants.map(v => `<button class="size-chip" ${v.stock===0?'disabled':''} onclick="pickScanSize('${article.id}','${v.taille.replace(/'/g,"\\'")}')">${escapeHtml(v.taille)}</button>`).join('')}
-    </div>
   </div>`;
 }
 
@@ -950,8 +1160,29 @@ function renderLieuPicker(){
   </div>`;
 }
 
+function renderScanSizePicker(){
+  if (!state.scanPendingColor) return '';
+  const found = findColorById(state.scanPendingColor);
+  if (!found) return '';
+  const { article, color } = found;
+  return `
+  <div style="border:2px solid var(--sky);border-radius:14px;padding:12px;margin-bottom:14px;background:#fff;">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+      ${PhotoSafe(color.photo, article.nom, 44, 10)}
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13.5px;">${escapeHtml(article.nom)} <span class="muted">· ${escapeHtml(color.couleur)}</span></div>
+        <div class="muted" style="font-size:12px;">Choisis la taille à ajouter</div>
+      </div>
+      <button type="button" class="mini-btn" onclick="cancelScanPending()">${ICONS.x}</button>
+    </div>
+    <div class="size-chips">
+      ${color.variants.map(v => `<button class="size-chip" ${v.stock===0?'disabled':''} onclick="pickScanSize('${color.id}','${v.taille.replace(/'/g,"\\'")}')">${escapeHtml(v.taille)}</button>`).join('')}
+    </div>
+  </div>`;
+}
+
 function renderVente(){
-  const list = filteredArticles(state.ventesearch);
+  const cards = filteredCards(state.ventesearch);
   const detail = panierDetail();
   const total = panierTotal();
   const remaining = reglementsRemaining();
@@ -964,18 +1195,18 @@ function renderVente(){
       </div>
       ${CollectionPills()}
       <div class="vente-grid">
-        ${list.map(a => `
+        ${cards.map(({article:a, color:c}) => `
           <div class="vente-tile">
-            ${PhotoSafe(a.photo, a.nom, 130, 10)}
+            ${PhotoSafe(c.photo, a.nom, 130, 10)}
             <div class="vente-tile-name">${escapeHtml(a.nom)}</div>
-            <div class="vente-tile-meta">${escapeHtml(a.couleur||'')}</div>
-            <div style="font-weight:700;color:var(--sky-deep);font-size:13px;">${euros(a.prix)}</div>
+            <div class="vente-tile-meta">${escapeHtml(c.couleur||'')}</div>
+            <div style="font-size:13px;">${priceDisplay(c)}</div>
             <div class="size-chips">
-              ${a.variants.map(v => `<button class="size-chip" ${v.stock===0?'disabled':''} onclick="addToPanier('${a.id}','${v.taille.replace(/'/g,"\\'")}')">${escapeHtml(v.taille)}</button>`).join('')}
+              ${c.variants.map(v => `<button class="size-chip" ${v.stock===0?'disabled':''} onclick="addToPanier('${c.id}','${v.taille.replace(/'/g,"\\'")}')">${escapeHtml(v.taille)}</button>`).join('')}
             </div>
           </div>`).join('')}
       </div>
-      ${list.length===0 ? '<div class="muted" style="margin-top:20px;">Aucun article ne correspond.</div>' : ''}
+      ${cards.length===0 ? '<div class="muted" style="margin-top:20px;">Aucun article ne correspond.</div>' : ''}
     </div>
 
     <div class="panel cart" id="cart-panel">
@@ -990,7 +1221,7 @@ function renderVente(){
         <div class="field" style="margin-bottom:14px;">Scanner un article
           <div style="display:flex;gap:6px;">
             <input id="scan-code-input" class="input" placeholder="Scanner (douchette) ou saisir un code, puis Entrée" onkeydown="onScanInputKeydown(event)" />
-            <button type="button" class="btn btn-outline" style="padding:0 14px;flex-shrink:0;" onclick="openScanner()" title="Scanner avec la caméra">${ICONS.camera}</button>
+            <button type="button" class="btn btn-outline" style="padding:0 14px;flex-shrink:0;" onclick="openScanner('cart')" title="Scanner avec la caméra">${ICONS.camera}</button>
           </div>
         </div>
         ${renderScanSizePicker()}
@@ -999,15 +1230,15 @@ function renderVente(){
         <div style="margin-bottom:14px;">
           ${detail.map(p => `
             <div class="cart-row">
-              ${PhotoSafe(p.article.photo, p.article.nom, 38, 9)}
+              ${PhotoSafe(p.color.photo, p.article.nom, 38, 9)}
               <div style="flex:1;min-width:0;">
-                <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.article.nom)} <span class="muted">· ${escapeHtml(p.taille)}</span></div>
-                <div style="font-size:11.5px;color:var(--ink-soft);">${euros(p.article.prix)} × ${p.qty}</div>
+                <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.article.nom)} <span class="muted">· ${escapeHtml(p.color.couleur)} · ${escapeHtml(p.taille)}</span></div>
+                <div style="font-size:11.5px;color:var(--ink-soft);">${euros(prixRemise(p.color))} × ${p.qty}</div>
               </div>
               <div style="display:flex;align-items:center;gap:4px;">
-                <button class="qty-btn" onclick="changeQty('${p.articleId}','${p.taille.replace(/'/g,"\\'")}',-1)">${ICONS.minus}</button>
+                <button class="qty-btn" onclick="changeQty('${p.colorId}','${p.taille.replace(/'/g,"\\'")}',-1)">${ICONS.minus}</button>
                 <span style="font-size:13px;font-weight:600;width:16px;text-align:center;display:inline-block;">${p.qty}</span>
-                <button class="qty-btn" onclick="changeQty('${p.articleId}','${p.taille.replace(/'/g,"\\'")}',1)">${ICONS.plus}</button>
+                <button class="qty-btn" onclick="changeQty('${p.colorId}','${p.taille.replace(/'/g,"\\'")}',1)">${ICONS.plus}</button>
               </div>
             </div>`).join('')}
         </div>
@@ -1037,165 +1268,11 @@ function renderHistorique(){
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);">
           ${v.items.map(it => `
             <div class="vente-detail-row">
-              <span>${it.qty} × ${escapeHtml(it.nom)}${it.taille ? ' <span class="muted">· '+escapeHtml(it.taille)+'</span>' : ''}</span>
+              <span>${it.qty} × ${escapeHtml(it.nom)}${it.couleur ? ' <span class="muted">('+escapeHtml(it.couleur)+')</span>' : ''}${it.taille ? ' <span class="muted">· '+escapeHtml(it.taille)+'</span>' : ''}</span>
               <span class="muted">${euros(it.prixUnitaire * it.qty)}</span>
             </div>`).join('')}
         </div>
       </details>`).join('')}
-  </div>`;
-}
-
-// ---------- Caisse (end-of-day register check) ----------
-function dateOnly(iso){ return String(iso).slice(0,10); }
-
-function findCloture(date, lieu){
-  return state.clotures.find(c => c.date === date && c.lieu_vente === lieu) || null;
-}
-function setCaisseDate(d){
-  state.caisseDate = d;
-  prefillCaisseForm();
-  render();
-}
-function setCaisseLieu(l){
-  state.caisseLieu = l;
-  prefillCaisseForm();
-  render();
-}
-function prefillCaisseForm(){
-  const c = findCloture(state.caisseDate, state.caisseLieu);
-  state.caisseFondCaisse = c ? String(c.fond_caisse) : '';
-  state.caisseComptageReel = c && c.comptage_reel != null ? String(c.comptage_reel) : '';
-  state.caisseNote = c ? (c.note || '') : '';
-}
-function updateCaisseField(field, value){
-  state[field] = value;
-  renderPreservingFocus();
-}
-function ventesForCaisse(){
-  return state.ventes.filter(v => v.lieu_vente === state.caisseLieu && dateOnly(v.date) === state.caisseDate);
-}
-function ventesForDateAllLieux(){
-  return state.ventes.filter(v => dateOnly(v.date) === state.caisseDate);
-}
-function reglementTotalsFor(rows){
-  const totals = {};
-  MODES_REGLEMENT.forEach(m => totals[m] = 0);
-  rows.forEach(v => (v.reglements||[]).forEach(r => {
-    totals[r.mode] = (totals[r.mode] || 0) + Number(r.montant);
-  }));
-  return totals;
-}
-async function saveCloture(){
-  const fond = parseFloat(state.caisseFondCaisse) || 0;
-  const comptage = state.caisseComptageReel === '' ? null : (parseFloat(state.caisseComptageReel) || 0);
-  state.saving = true; render();
-  try{
-    const { error } = await withRetry(() => sb.from('cloture_caisse').upsert({
-      date: state.caisseDate,
-      lieu_vente: state.caisseLieu,
-      fond_caisse: fond,
-      comptage_reel: comptage,
-      note: state.caisseNote || null,
-    }, { onConflict: 'date,lieu_vente' }));
-    if (error) throw error;
-    await loadAll();
-    showToast('Clôture de caisse enregistrée pour le ' + new Date(state.caisseDate).toLocaleDateString('fr-FR') + ' · ' + state.caisseLieu, 'success');
-  } catch(err){
-    console.error(err);
-    showToast("Erreur lors de l'enregistrement de la clôture : " + err.message, 'error');
-  }
-  state.saving = false;
-  render();
-}
-
-function setExportRange(kind){
-  const now = new Date();
-  let from, to;
-  if (kind === 'semaine'){
-    const day = (now.getDay() + 6) % 7; // Monday = 0
-    from = new Date(now); from.setDate(now.getDate() - day);
-    to = new Date(now);
-  } else if (kind === 'mois'){
-    from = new Date(now.getFullYear(), now.getMonth(), 1);
-    to = new Date(now);
-  } else {
-    from = null; to = null;
-  }
-  state.exportFrom = from ? from.toISOString().slice(0,10) : '';
-  state.exportTo = to ? to.toISOString().slice(0,10) : '';
-  render();
-}
-function setExportLieu(l){ state.exportLieu = l; render(); }
-function updateExportField(field, value){ state[field] = value; renderPreservingFocus(); }
-
-function ventesForExport(){
-  return state.ventes.filter(v => {
-    const d = dateOnly(v.date);
-    if (state.exportFrom && d < state.exportFrom) return false;
-    if (state.exportTo && d > state.exportTo) return false;
-    if (state.exportLieu !== 'Tous' && v.lieu_vente !== state.exportLieu) return false;
-    return true;
-  });
-}
-
-function downloadVentesAsExcel(rows, filenameLabel){
-  if (rows.length === 0){ showToast('Aucune vente à exporter pour cette sélection.', 'error'); return; }
-  const data = rows.map(v => {
-    const d = new Date(v.date);
-    const reglementsStr = (v.reglements||[]).map(r => `${r.mode}: ${Number(r.montant).toFixed(2)}€`).join(' + ');
-    const articlesStr = (v.items||[]).map(it => `${it.qty}x ${it.nom}${it.taille?' ('+it.taille+')':''}`).join(', ');
-    return {
-      'Date': d.toLocaleDateString('fr-FR'),
-      'Heure': d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),
-      'Lieu de vente': v.lieu_vente || '',
-      'Articles': articlesStr,
-      'Nb articles': (v.items||[]).reduce((s,it)=>s+it.qty,0),
-      'Total (€)': Number(v.total),
-      'Règlements': reglementsStr,
-    };
-  });
-  const totalGeneral = rows.reduce((s,v)=>s+Number(v.total),0);
-  data.push({ 'Date':'', 'Heure':'', 'Lieu de vente':'', 'Articles':'', 'Nb articles':'', 'Total (€)': totalGeneral, 'Règlements': 'TOTAL' });
-
-  const ws = XLSX.utils.json_to_sheet(data);
-  ws['!cols'] = [{wch:11},{wch:7},{wch:16},{wch:45},{wch:10},{wch:11},{wch:28}];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Ventes');
-  XLSX.writeFile(wb, `ventes-bebeach-${filenameLabel}.xlsx`);
-}
-function exportVentesExcel(){
-  const label = (state.exportFrom || state.exportTo) ? `${state.exportFrom||'debut'}_au_${state.exportTo||'aujourdhui'}` : 'toutes';
-  downloadVentesAsExcel(ventesForExport(), label);
-}
-function exportVentesDuJourCaisse(){
-  downloadVentesAsExcel(ventesForCaisse(), `${state.caisseDate}_${state.caisseLieu}`.replace(/\s+/g,'-'));
-}
-
-function renderExportPanel(){
-  return `
-  <div class="panel" style="margin-top:18px;">
-    <div class="panel-title">${ICONS.history} Export des ventes (Excel)</div>
-    <div class="toolbar" style="margin-bottom:10px;">
-      <button type="button" class="add-size-btn" onclick="setExportRange('semaine')">Cette semaine</button>
-      <button type="button" class="add-size-btn" onclick="setExportRange('mois')">Ce mois</button>
-      <button type="button" class="add-size-btn" onclick="setExportRange('tout')">Tout</button>
-    </div>
-    <div class="field-row">
-      <label class="field" style="flex:1;">Du
-        <input id="export-from" class="input" type="date" value="${state.exportFrom}" oninput="updateExportField('exportFrom', this.value)" />
-      </label>
-      <label class="field" style="flex:1;">Au
-        <input id="export-to" class="input" type="date" value="${state.exportTo}" oninput="updateExportField('exportTo', this.value)" />
-      </label>
-      <label class="field" style="flex:1;">Lieu de vente
-        <select class="input" onchange="setExportLieu(this.value)">
-          <option value="Tous" ${state.exportLieu==='Tous'?'selected':''}>Tous</option>
-          ${state.lieux.map(l => `<option value="${escapeHtml(l.nom)}" ${state.exportLieu===l.nom?'selected':''}>${escapeHtml(l.nom)}</option>`).join('')}
-        </select>
-      </label>
-    </div>
-    <div class="muted" style="margin-bottom:10px;">${ventesForExport().length} vente(s) correspondent à ces filtres.</div>
-    <button class="btn btn-coral" onclick="exportVentesExcel()">Télécharger le fichier Excel</button>
   </div>`;
 }
 
@@ -1339,26 +1416,92 @@ function renderCaisse(){
   </div>`;
 }
 
-function renderVariantEditor(){
+function renderExportPanel(){
   return `
-  <div class="variant-editor">
-    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px;">Tailles &amp; stock</div>
-    ${state.formVariants.map(v => `
-      <div class="variant-editor-row">
-        <input class="input taille-input" placeholder="Taille" value="${escapeHtml(v.taille)}" oninput="updateVariantField('${v.key}','taille',this.value)" />
-        <input class="input" type="number" min="0" placeholder="Stock" value="${v.stock}" oninput="updateVariantField('${v.key}','stock',this.value)" />
-        <button type="button" class="mini-btn" style="color:var(--coral-deep);" onclick="removeVariantRow('${v.key}')">${ICONS.x}</button>
-      </div>`).join('')}
-    <div class="add-size-row">
-      <button type="button" class="add-size-btn" onclick="addVariantRow('')">+ Ajouter une taille</button>
-      <button type="button" class="add-size-btn" onclick="addAllStandardSizes()">+ XS → XXL</button>
+  <div class="panel" style="margin-top:18px;">
+    <div class="panel-title">${ICONS.history} Export des ventes (Excel)</div>
+    <div class="toolbar" style="margin-bottom:10px;">
+      <button type="button" class="add-size-btn" onclick="setExportRange('semaine')">Cette semaine</button>
+      <button type="button" class="add-size-btn" onclick="setExportRange('mois')">Ce mois</button>
+      <button type="button" class="add-size-btn" onclick="setExportRange('tout')">Tout</button>
+    </div>
+    <div class="field-row">
+      <label class="field" style="flex:1;">Du
+        <input id="export-from" class="input" type="date" value="${state.exportFrom}" oninput="updateExportField('exportFrom', this.value)" />
+      </label>
+      <label class="field" style="flex:1;">Au
+        <input id="export-to" class="input" type="date" value="${state.exportTo}" oninput="updateExportField('exportTo', this.value)" />
+      </label>
+      <label class="field" style="flex:1;">Lieu de vente
+        <select class="input" onchange="setExportLieu(this.value)">
+          <option value="Tous" ${state.exportLieu==='Tous'?'selected':''}>Tous</option>
+          ${state.lieux.map(l => `<option value="${escapeHtml(l.nom)}" ${state.exportLieu===l.nom?'selected':''}>${escapeHtml(l.nom)}</option>`).join('')}
+        </select>
+      </label>
+    </div>
+    <div class="muted" style="margin-bottom:10px;">${ventesForExport().length} vente(s) correspondent à ces filtres.</div>
+    <button class="btn btn-coral" onclick="exportVentesExcel()">Télécharger le fichier Excel</button>
+  </div>`;
+}
+
+function renderColorBlock(c, index){
+  const finalPrice = prixRemise({ prix: parseFloat(c.prix)||0, remise: parseFloat(c.remise)||0 });
+  return `
+  <div class="color-block">
+    <div class="color-block-header">
+      <div class="color-block-title">Couleur ${index + 1}${c.couleur ? ' — ' + escapeHtml(c.couleur) : ''}</div>
+      ${state.formColors.length > 1 ? `<button type="button" class="mini-btn" style="color:var(--coral-deep);" onclick="removeColorBlock('${c.key}')">${ICONS.x}</button>` : ''}
+    </div>
+    <div class="color-preview-row">
+      ${PhotoSafe(c.photo, c.couleur, 56, 10)}
+      <img src="${qrUrl(c.code || 'BB-0000', 56)}" width="56" height="56" alt="QR" style="border-radius:6px;" />
+      <div style="flex:1;min-width:0;">
+        <div class="field-row" style="margin-bottom:0;">
+          <label class="field" style="flex:1;">Couleur
+            <input class="input" value="${escapeHtml(c.couleur)}" placeholder="Ex : Bleu ciel" oninput="updateColorField('${c.key}','couleur',this.value)" />
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="field-row">
+      <label class="field" style="flex:1.4;">Code (QR / code-barres)
+        <div style="display:flex;gap:6px;">
+          <input class="input" value="${escapeHtml(c.code)}" oninput="updateColorField('${c.key}','code',this.value)" />
+          <button type="button" class="add-size-btn" onclick="regenerateColorCode('${c.key}')">Générer</button>
+        </div>
+      </label>
+    </div>
+    <div class="field-row">
+      <label class="field" style="flex:1;">Prix (€)
+        <input class="input" type="number" min="0" step="0.5" value="${c.prix}" oninput="updateColorField('${c.key}','prix',this.value)" />
+      </label>
+      <label class="field" style="flex:1;">Remise (%)
+        <input class="input" type="number" min="0" max="100" step="1" value="${c.remise}" oninput="updateColorField('${c.key}','remise',this.value)" />
+      </label>
+      <label class="field" style="flex:1;">Photo (URL)
+        <input class="input" value="${escapeHtml(c.photo||'')}" placeholder="https://..." oninput="updateColorField('${c.key}','photo',this.value)" />
+      </label>
+    </div>
+    ${(parseFloat(c.remise)||0) > 0 ? `<div class="price-preview">Prix remisé : <b>${euros(finalPrice)}</b> <span style="text-decoration:line-through;">${euros(parseFloat(c.prix)||0)}</span></div>` : ''}
+    <div class="variant-editor">
+      <div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px;">Tailles &amp; stock (pour cette couleur)</div>
+      ${c.variants.map(v => `
+        <div class="variant-editor-row">
+          <input class="input taille-input" placeholder="Taille" value="${escapeHtml(v.taille)}" oninput="updateColorVariantField('${c.key}','${v.key}','taille',this.value)" />
+          <input class="input" type="number" min="0" placeholder="Stock" value="${v.stock}" oninput="updateColorVariantField('${c.key}','${v.key}','stock',this.value)" />
+          <button type="button" class="mini-btn" style="color:var(--coral-deep);" onclick="removeVariantRowFromColor('${c.key}','${v.key}')">${ICONS.x}</button>
+        </div>`).join('')}
+      <div class="add-size-row">
+        <button type="button" class="add-size-btn" onclick="addVariantRowToColor('${c.key}','')">+ Ajouter une taille</button>
+        <button type="button" class="add-size-btn" onclick="addAllStandardSizesToColor('${c.key}')">+ XS → XXL</button>
+      </div>
     </div>
   </div>`;
 }
 
 function renderForm(){
   if (!state.showForm) return '';
-  const a = state.editing || { code: randomCode(), nom:'', collection:COLLECTIONS[0], couleur:'', prix:'', seuil:3, photo:'' };
+  const a = state.editing || { nom:'', collection:COLLECTIONS[0], seuil:3 };
   return `
   <div class="modal-backdrop" onclick="if(event.target===this) closeForm()">
     <div class="modal">
@@ -1370,24 +1513,21 @@ function renderForm(){
         <label class="field">Nom de l'article
           <input class="input" name="nom" required value="${escapeHtml(a.nom)}" placeholder="Ex : T-shirt Vagues" />
         </label>
-        <label class="field">Collection
-          <select class="input" name="collection">
-            ${COLLECTIONS.map(c => `<option value="${escapeHtml(c)}" ${a.collection===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}
-          </select>
-        </label>
         <div class="field-row">
-          <label class="field" style="flex:1;">Couleur<input class="input" name="couleur" value="${escapeHtml(a.couleur||'')}" placeholder="Sable" /></label>
-          <label class="field" style="flex:1;">Prix (€)<input class="input" type="number" min="0" step="0.5" name="prix" required value="${a.prix}" /></label>
-          <label class="field" style="flex:1;">Seuil alerte<input class="input" type="number" min="0" name="seuil" value="${a.seuil}" /></label>
+          <label class="field" style="flex:2;">Collection
+            <select class="input" name="collection">
+              ${COLLECTIONS.map(col => `<option value="${escapeHtml(col)}" ${a.collection===col?'selected':''}>${escapeHtml(col)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="field" style="flex:1;">Seuil alerte
+            <input class="input" type="number" min="0" name="seuil" value="${a.seuil}" />
+          </label>
         </div>
-        <label class="field">Photo (URL, facultatif)
-          <input class="input" name="photo" value="${escapeHtml(a.photo||'')}" placeholder="https://..." />
-        </label>
-        <label class="field">Code (QR / code-barres)
-          <input class="input" name="code" value="${escapeHtml(a.code)}" placeholder="BB-1234" />
-        </label>
-        <div class="hint">Astuce photo : utilise un lien d'image (ex. depuis bebeach.fr) plutôt qu'un fichier importé — ça évite de stocker de grosses images. Le code sert à générer le QR affiché sur la fiche article.</div>
-        ${renderVariantEditor()}
+        <div class="hint">Astuce photo : utilise un lien d'image (ex. depuis bebeach.fr) plutôt qu'un fichier importé — ça évite de stocker de grosses images. Chaque couleur a son propre QR code, prix et remise.</div>
+
+        ${state.formColors.map((c, i) => renderColorBlock(c, i)).join('')}
+        <button type="button" class="btn btn-outline" style="width:100%;margin-bottom:14px;" onclick="addColorBlock()">+ Ajouter une couleur</button>
+
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" style="flex:1;" onclick="closeForm()">Annuler</button>
           <button type="submit" class="btn btn-coral" style="flex:1;" ${state.saving?'disabled':''}>${state.saving ? 'Enregistrement…' : 'Enregistrer'}</button>
@@ -1437,13 +1577,12 @@ function renderMiniCartBar(){
 // ---------- Realtime sync across devices (Mac <-> iPhone) ----------
 let realtimeReloadTimer = null;
 function scheduleRealtimeReload(){
-  // Debounce: several table changes can fire together (e.g. a sale updates
-  // ventes + several article_variants rows), so wait a beat before reloading.
   clearTimeout(realtimeReloadTimer);
   realtimeReloadTimer = setTimeout(() => { loadAll(); }, 400);
 }
 sb.channel('bebeach-realtime')
   .on('postgres_changes', { event: '*', schema: 'public', table: 'articles' }, scheduleRealtimeReload)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'article_colors' }, scheduleRealtimeReload)
   .on('postgres_changes', { event: '*', schema: 'public', table: 'article_variants' }, scheduleRealtimeReload)
   .on('postgres_changes', { event: '*', schema: 'public', table: 'ventes' }, scheduleRealtimeReload)
   .on('postgres_changes', { event: '*', schema: 'public', table: 'cloture_caisse' }, scheduleRealtimeReload)
