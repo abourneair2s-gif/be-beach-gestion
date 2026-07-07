@@ -245,7 +245,9 @@ const ICONS = {
   check: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
   wave: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 15c2 0 2-3 4-3s2 3 4 3 2-3 4-3 2 3 4 3 2-3 4-3"/><path d="M2 20c2 0 2-3 4-3s2 3 4 3 2-3 4-3 2 3 4 3 2-3 4-3"/></svg>',
   cash: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 6v0M18 18v0"/></svg>',
-  camera: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>'
+  camera: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+  user: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>',
+  mail: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 6l10 7 10-7"/></svg>'
 };
 
 function euros(n){
@@ -282,6 +284,12 @@ let state = {
   ventes: [],
   clotures: [],
   lieux: [],
+  clients: [],
+  clientSearch: '',
+  showClientForm: false,
+  editingClient: null,
+  selectedClientId: null,
+  clientPickerQuery: '',
   loading: true,
   error: null,
   collectionFilter: 'Toutes',
@@ -330,16 +338,18 @@ function stockCostValueOf(article){
 async function loadAll(){
   state.loading = true; render();
   try{
-    const [{ data: articles, error: e1 }, { data: ventes, error: e2 }, { data: clotures, error: e3 }, { data: lieux, error: e4 }] = await Promise.all([
+    const [{ data: articles, error: e1 }, { data: ventes, error: e2 }, { data: clotures, error: e3 }, { data: lieux, error: e4 }, { data: clients, error: e5 }] = await Promise.all([
       withRetry(() => sb.from('articles').select('*, article_colors(*, article_variants(*))').order('created_at', { ascending: false })),
       withRetry(() => sb.from('ventes').select('*').order('date', { ascending: false }).limit(500)),
       withRetry(() => sb.from('cloture_caisse').select('*')),
-      withRetry(() => sb.from('lieux_vente').select('*').order('created_at', { ascending: true }))
+      withRetry(() => sb.from('lieux_vente').select('*').order('created_at', { ascending: true })),
+      withRetry(() => sb.from('clients').select('*').order('nom', { ascending: true }))
     ]);
     if (e1) throw e1;
     if (e2) throw e2;
     if (e3) throw e3;
     if (e4) throw e4;
+    if (e5) throw e5;
     state.articles = (articles || []).map(a => ({
       id: a.id, nom: a.nom, collection: a.collection, seuil: a.seuil,
       colors: (a.article_colors || []).map(c => ({
@@ -350,6 +360,7 @@ async function loadAll(){
     state.ventes = ventes || [];
     state.clotures = clotures || [];
     state.lieux = lieux || [];
+    state.clients = clients || [];
     if (!state.lieux.some(l => l.nom === state.lieuVente) && state.lieux.length) state.lieuVente = state.lieux[0].nom;
     if (!state.lieux.some(l => l.nom === state.caisseLieu) && state.lieux.length) state.caisseLieu = state.lieux[0].nom;
     prefillCaisseForm();
@@ -443,6 +454,215 @@ async function deleteLieuVente(id, nom){
   } catch(err){
     showToast('Erreur lors de la suppression : ' + err.message, 'error');
   }
+}
+
+// ---------- Clients ----------
+function onClientSearchInput(e){ state.clientSearch = e.target.value; renderPreservingFocus(); }
+function filteredClients(){
+  const q = state.clientSearch.trim().toLowerCase();
+  if (!q) return state.clients;
+  return state.clients.filter(c =>
+    (c.nom||'').toLowerCase().includes(q) ||
+    (c.prenom||'').toLowerCase().includes(q) ||
+    (c.email||'').toLowerCase().includes(q) ||
+    (c.telephone||'').toLowerCase().includes(q)
+  );
+}
+function openAddClientForm(){ state.editingClient = null; state.showClientForm = true; render(); }
+function openEditClientForm(id){
+  const c = state.clients.find(x => x.id === id);
+  if (!c) return;
+  state.editingClient = c;
+  state.showClientForm = true;
+  render();
+}
+function closeClientForm(){ state.showClientForm = false; state.editingClient = null; render(); }
+async function saveClientForm(e){
+  e.preventDefault();
+  const f = e.target;
+  const payload = {
+    nom: f.nom.value.trim(),
+    prenom: f.prenom.value.trim(),
+    adresse: f.adresse.value.trim(),
+    telephone: f.telephone.value.trim(),
+    email: f.email.value.trim(),
+  };
+  if (!payload.nom){ return; }
+  state.saving = true; render();
+  try{
+    if (state.editingClient){
+      const { error } = await sb.from('clients').update(payload).eq('id', state.editingClient.id);
+      if (error) throw error;
+    } else {
+      const { error } = await sb.from('clients').insert(payload);
+      if (error) throw error;
+    }
+    state.showClientForm = false;
+    state.editingClient = null;
+    await loadAll();
+  } catch(err){
+    showToast("Erreur lors de l'enregistrement du client : " + err.message, 'error');
+  }
+  state.saving = false;
+  render();
+}
+async function deleteClient(id, nom){
+  if (!confirm(`Supprimer la fiche client "${nom}" ?`)) return;
+  try{
+    const { error } = await sb.from('clients').delete().eq('id', id);
+    if (error) throw error;
+    if (state.selectedClientId === id) state.selectedClientId = null;
+    await loadAll();
+  } catch(err){
+    showToast('Erreur lors de la suppression : ' + err.message, 'error');
+  }
+}
+function exportClientsExcel(){
+  if (state.clients.length === 0){ showToast('Aucun client à exporter.', 'error'); return; }
+  const data = state.clients.map(c => ({
+    'Nom': c.nom || '', 'Prénom': c.prenom || '', 'Adresse': c.adresse || '',
+    'Téléphone': c.telephone || '', 'Email': c.email || '',
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:16},{wch:14},{wch:35},{wch:16},{wch:26}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Clients');
+  XLSX.writeFile(wb, 'clients-bebeach.xlsx');
+}
+async function copyAllClientEmails(){
+  const emails = [...new Set(state.clients.map(c => (c.email||'').trim()).filter(Boolean))];
+  if (emails.length === 0){ showToast('Aucune adresse mail enregistrée.', 'error'); return; }
+  const text = emails.join('; ');
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast(`${emails.length} adresse(s) mail copiée(s) — colle-les dans ton client mail.`, 'success');
+  } catch(err){
+    // Clipboard API unavailable/blocked: show a selectable textarea as fallback
+    showClientEmailsFallback(text, emails.length);
+  }
+}
+function showClientEmailsFallback(text, count){
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML = `
+    <div style="background:#FFFDF8;border-radius:16px;padding:18px;max-width:460px;width:100%;">
+      <div style="font-family:'Fraunces',serif;font-weight:600;margin-bottom:8px;">${count} adresse(s) mail</div>
+      <div style="font-size:12px;color:#7A7362;margin-bottom:8px;">Sélectionne tout (ou copie manuellement) puis colle dans ton client mail.</div>
+      <textarea readonly style="width:100%;height:120px;border:1px solid #E9DFC7;border-radius:10px;padding:8px;font-size:12.5px;" onclick="this.select()">${text}</textarea>
+      <button style="margin-top:10px;width:100%;padding:10px;border:none;border-radius:12px;background:#E4886B;color:#fff;font-weight:600;cursor:pointer;" onclick="this.closest('div[style*=fixed]').remove()">Fermer</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('textarea').focus();
+  overlay.querySelector('textarea').select();
+}
+
+// ---------- Client picker in cart ----------
+function setSelectedClient(id){ state.selectedClientId = id || null; render(); }
+function onClientPickerInput(e){ state.clientPickerQuery = e.target.value; renderPreservingFocus(); }
+function renderClientPicker(){
+  const selected = findClientById(state.selectedClientId);
+  const q = (state.clientPickerQuery||'').trim().toLowerCase();
+  const matches = q ? state.clients.filter(c =>
+    (c.nom||'').toLowerCase().includes(q) || (c.prenom||'').toLowerCase().includes(q) ||
+    (c.email||'').toLowerCase().includes(q) || (c.telephone||'').toLowerCase().includes(q)
+  ).slice(0, 6) : [];
+
+  return `
+  <div class="field" style="margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span>Client (facultatif)</span>
+      <a href="#" onclick="event.preventDefault();openAddClientForm()" style="font-size:11px;color:var(--sky-deep);">+ Nouveau client</a>
+    </div>
+    ${selected ? `
+      <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff;">
+        ${ICONS.user}
+        <div style="flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(clientLabel(selected))}</div>
+        <button type="button" class="mini-btn" onclick="setSelectedClient(null)">${ICONS.x}</button>
+      </div>
+    ` : `
+      <input id="client-picker-input" class="input" placeholder="Chercher un client (nom, email, tél.)..." value="${escapeHtml(state.clientPickerQuery)}" oninput="onClientPickerInput(event)" />
+      ${matches.length > 0 ? `
+        <div style="border:1px solid var(--line);border-radius:10px;margin-top:4px;overflow:hidden;">
+          ${matches.map(c => `
+            <div onclick="setSelectedClient('${c.id}')" style="padding:8px 10px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);">
+              <div style="font-weight:600;">${escapeHtml(clientLabel(c))}</div>
+              <div class="muted" style="font-size:11.5px;">${escapeHtml(c.email||c.telephone||'')}</div>
+            </div>`).join('')}
+        </div>` : (q ? `<div class="muted" style="font-size:12px;margin-top:4px;">Aucun client trouvé pour "${escapeHtml(q)}".</div>` : '')}
+    `}
+  </div>`;
+}
+
+function renderClients(){
+  const list = filteredClients();
+  return `
+  <div style="margin-top:8px;">
+    <div class="toolbar">
+      ${SearchBox('client-search-input', state.clientSearch, 'onClientSearchInput', 'Rechercher par nom, email ou téléphone...')}
+      <button class="btn btn-outline btn-sm" onclick="copyAllClientEmails()" style="display:flex;align-items:center;gap:6px;">${ICONS.mail} Copier tous les emails</button>
+      <button class="btn btn-outline btn-sm" onclick="exportClientsExcel()">Exporter (Excel)</button>
+      <button class="btn btn-coral" onclick="openAddClientForm()" style="display:flex;align-items:center;gap:6px;">${ICONS.plus} Nouveau client</button>
+    </div>
+    <div class="stock-grid">
+      ${list.map(c => `
+        <div class="stock-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">
+            <div>
+              <div class="stock-name">${escapeHtml(clientLabel(c))}</div>
+              ${c.email ? `<div class="stock-meta">${ICONS.mail} ${escapeHtml(c.email)}</div>` : ''}
+              ${c.telephone ? `<div class="stock-meta">${escapeHtml(c.telephone)}</div>` : ''}
+              ${c.adresse ? `<div class="muted" style="font-size:11.5px;margin-top:4px;">${escapeHtml(c.adresse)}</div>` : ''}
+            </div>
+          </div>
+          <div class="stock-actions">
+            <button class="btn btn-outline btn-sm" onclick="openEditClientForm('${c.id}')">Modifier</button>
+            ${state.confirmDelete===('client-'+c.id)
+              ? `<button class="btn btn-sm" style="background:var(--coral-deep);color:#fff;" onclick="deleteClient('${c.id}','${escapeHtml(clientLabel(c)).replace(/'/g,"\\'")}')">Confirmer ?</button>`
+              : `<button class="btn btn-outline btn-sm" style="color:var(--coral-deep);padding:5px 8px;" onclick="askDelete('client-${c.id}')">${ICONS.trash}</button>`}
+          </div>
+        </div>`).join('')}
+    </div>
+    ${list.length===0 ? `<div class="muted" style="margin-top:20px;">${state.clients.length===0 ? "Aucun client enregistré pour le moment." : "Aucun client ne correspond."}</div>` : ''}
+  </div>`;
+}
+
+function renderClientForm(){
+  if (!state.showClientForm) return '';
+  const c = state.editingClient || { nom:'', prenom:'', adresse:'', telephone:'', email:'' };
+  return `
+  <div class="modal-backdrop" onclick="if(event.target===this) closeClientForm()">
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-header">
+        <div class="serif" style="font-size:19px;font-weight:600;">${state.editingClient ? 'Modifier le client' : 'Nouveau client'}</div>
+        <button class="modal-close" onclick="closeClientForm()">${ICONS.x}</button>
+      </div>
+      <form onsubmit="saveClientForm(event)">
+        <div class="field-row">
+          <label class="field" style="flex:1;">Nom
+            <input class="input" name="nom" required value="${escapeHtml(c.nom)}" />
+          </label>
+          <label class="field" style="flex:1;">Prénom
+            <input class="input" name="prenom" value="${escapeHtml(c.prenom||'')}" />
+          </label>
+        </div>
+        <label class="field">Adresse
+          <input class="input" name="adresse" value="${escapeHtml(c.adresse||'')}" placeholder="Rue, code postal, ville" />
+        </label>
+        <div class="field-row">
+          <label class="field" style="flex:1;">Téléphone
+            <input class="input" name="telephone" value="${escapeHtml(c.telephone||'')}" placeholder="06 12 34 56 78" />
+          </label>
+          <label class="field" style="flex:1;">Email
+            <input class="input" name="email" type="email" value="${escapeHtml(c.email||'')}" placeholder="nom@exemple.fr" />
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" style="flex:1;" onclick="closeClientForm()">Annuler</button>
+          <button type="submit" class="btn btn-coral" style="flex:1;" ${state.saving?'disabled':''}>${state.saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+        </div>
+      </form>
+    </div>
+  </div>`;
 }
 
 // ---------- Scan to add (camera QR/barcode + hardware scanner input) ----------
@@ -838,7 +1058,7 @@ async function encaisser(){
   const lieu = state.lieuVente;
   state.saving = true; render();
   try{
-    const { error: e1 } = await withRetry(() => sb.from('ventes').insert({ date: new Date().toISOString(), items, total, reglements: reglementsToSave, lieu_vente: lieu }));
+    const { error: e1 } = await withRetry(() => sb.from('ventes').insert({ date: new Date().toISOString(), items, total, reglements: reglementsToSave, lieu_vente: lieu, client_id: state.selectedClientId }));
     if (e1) throw e1;
     for (const p of detail){
       const variant = findVariant(p.colorId, p.taille);
@@ -847,6 +1067,8 @@ async function encaisser(){
     }
     state.panier = [];
     state.reglements = [{ mode:'CB', montant: 0 }];
+    state.selectedClientId = null;
+    state.clientPickerQuery = '';
     await loadAll();
     const modesLabel = reglementsToSave.map(r => `${r.mode} ${euros(r.montant)}`).join(' + ');
     state.saleConfirmation = { message: `Vente enregistrée · ${euros(total)}`, detail: `${modesLabel} · ${lieu}` };
@@ -1011,6 +1233,7 @@ function renderHeader(){
     { id:'stock', label:'Stock', icon: ICONS.package },
     { id:'vente', label:'Vente', icon: ICONS.bag },
     { id:'caisse', label:'Caisse', icon: ICONS.cash },
+    { id:'clients', label:'Clients', icon: ICONS.user },
     { id:'historique', label:'Historique', icon: ICONS.history },
   ];
   return `
@@ -1258,6 +1481,7 @@ function renderVente(){
         </div>
         ${renderScanSizePicker()}
         ${renderLieuPicker()}
+        ${renderClientPicker()}
         ${detail.length===0 ? '<div class="muted">Clique sur une taille pour ajouter un article à la vente.</div>' : ''}
         <div style="margin-bottom:14px;">
           ${detail.map(p => `
@@ -1298,6 +1522,7 @@ function renderHistorique(){
           <span style="font-weight:700;">${euros(v.total)}</span>
         </summary>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);">
+          ${v.client_id ? (() => { const cl = findClientById(v.client_id); return cl ? `<div style="font-size:12.5px;margin-bottom:8px;">${ICONS.user} <b>${escapeHtml(clientLabel(cl))}</b></div>` : ''; })() : ''}
           ${v.items.map(it => `
             <div class="vente-detail-row">
               <span>${it.qty} × ${escapeHtml(it.nom)}${it.couleur ? ' <span class="muted">('+escapeHtml(it.couleur)+')</span>' : ''}${it.taille ? ' <span class="muted">· '+escapeHtml(it.taille)+'</span>' : ''}</span>
@@ -1589,10 +1814,11 @@ function render(){
     else if (state.tab==='stock') content = renderStock();
     else if (state.tab==='vente') content = renderVente();
     else if (state.tab==='caisse') content = renderCaisse();
+    else if (state.tab==='clients') content = renderClients();
     else if (state.tab==='historique') content = renderHistorique();
     body = `<div class="container">${content}</div>`;
   }
-  root.innerHTML = renderHeader() + body + renderForm() + renderToast() + renderMiniCartBar();
+  root.innerHTML = renderHeader() + body + renderForm() + renderClientForm() + renderToast() + renderMiniCartBar();
 }
 
 function renderToast(){
@@ -1624,6 +1850,7 @@ sb.channel('bebeach-realtime')
   .on('postgres_changes', { event: '*', schema: 'public', table: 'ventes' }, scheduleRealtimeReload)
   .on('postgres_changes', { event: '*', schema: 'public', table: 'cloture_caisse' }, scheduleRealtimeReload)
   .on('postgres_changes', { event: '*', schema: 'public', table: 'lieux_vente' }, scheduleRealtimeReload)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, scheduleRealtimeReload)
   .subscribe();
 
 loadAll();
