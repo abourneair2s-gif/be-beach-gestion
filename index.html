@@ -286,6 +286,7 @@ let state = {
   lieux: [],
   clients: [],
   clientSearch: '',
+  clientLetter: 'Toutes',
   showClientForm: false,
   editingClient: null,
   selectedClientId: null,
@@ -460,13 +461,23 @@ async function deleteLieuVente(id, nom){
 function onClientSearchInput(e){ state.clientSearch = e.target.value; renderPreservingFocus(); }
 function filteredClients(){
   const q = state.clientSearch.trim().toLowerCase();
-  if (!q) return state.clients;
-  return state.clients.filter(c =>
-    (c.nom||'').toLowerCase().includes(q) ||
-    (c.prenom||'').toLowerCase().includes(q) ||
-    (c.email||'').toLowerCase().includes(q) ||
-    (c.telephone||'').toLowerCase().includes(q)
-  );
+  let list = state.clients;
+  if (state.clientLetter && state.clientLetter !== 'Toutes'){
+    list = list.filter(c => (c.nom||'').trim().charAt(0).toUpperCase() === state.clientLetter);
+  }
+  if (q){
+    list = list.filter(c =>
+      (c.nom||'').toLowerCase().includes(q) ||
+      (c.prenom||'').toLowerCase().includes(q) ||
+      (c.email||'').toLowerCase().includes(q) ||
+      (c.telephone||'').toLowerCase().includes(q)
+    );
+  }
+  return [...list].sort((a,b) => (a.nom||'').localeCompare(b.nom||'', 'fr'));
+}
+function setClientLetter(l){ state.clientLetter = l; render(); }
+function clientLettersAvailable(){
+  return new Set(state.clients.map(c => (c.nom||'').trim().charAt(0).toUpperCase()).filter(Boolean));
 }
 function openAddClientForm(){ state.editingClient = null; state.showClientForm = true; render(); }
 function openEditClientForm(id){
@@ -599,6 +610,19 @@ function renderClientPicker(){
   </div>`;
 }
 
+function renderAlphabetTabs(){
+  const available = clientLettersAvailable();
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  return `<div class="pills">
+    ${Pill('Toutes', state.clientLetter==='Toutes', "setClientLetter('Toutes')")}
+    ${letters.map(l => {
+      const has = available.has(l);
+      const active = state.clientLetter===l;
+      return `<button class="pill ${active?'active':''}" ${has?'':'disabled style="opacity:0.35;cursor:default;"'} onclick="${has ? `setClientLetter('${l}')` : ''}">${l}</button>`;
+    }).join('')}
+  </div>`;
+}
+
 function renderClients(){
   const list = filteredClients();
   return `
@@ -609,6 +633,7 @@ function renderClients(){
       <button class="btn btn-outline btn-sm" onclick="exportClientsExcel()">Exporter (Excel)</button>
       <button class="btn btn-coral" onclick="openAddClientForm()" style="display:flex;align-items:center;gap:6px;">${ICONS.plus} Nouveau client</button>
     </div>
+    ${renderAlphabetTabs()}
     <div class="stock-grid">
       ${list.map(c => `
         <div class="stock-card">
