@@ -280,6 +280,7 @@ let state = {
   reglements: [{ mode: 'CB', montant: 0 }],
   toast: null, // { message, kind }
   saleConfirmation: null, // { message } shown inline in the cart panel
+  scanPendingArticle: null, // article id awaiting a size choice after a scan
   newLieuName: '',
   showLieuManager: false,
   showForm: false,
@@ -579,12 +580,18 @@ function lookupAndAddByCode(code){
   } else if (inStock.length === 0){
     showToast(`"${article.nom}" est en rupture de stock sur toutes les tailles`, 'error');
   } else {
-    state.ventesearch = article.nom;
-    state.collectionFilter = 'Toutes';
+    state.scanPendingArticle = article.id;
     render();
-    showToast(`Plusieurs tailles dispo pour "${article.nom}" — choisis la taille ci-dessous`, 'success');
+    const cartEl = document.getElementById('cart-panel');
+    if (cartEl) cartEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
+function pickScanSize(articleId, taille){
+  addToPanier(articleId, taille);
+  state.scanPendingArticle = null;
+  render();
+}
+function cancelScanPending(){ state.scanPendingArticle = null; render(); }
 function onScanInputKeydown(e){
   if (e.key === 'Enter'){
     e.preventDefault();
@@ -902,6 +909,26 @@ function renderReglementsEditor(){
   </div>`;
 }
 
+function renderScanSizePicker(){
+  if (!state.scanPendingArticle) return '';
+  const article = state.articles.find(a => a.id === state.scanPendingArticle);
+  if (!article) return '';
+  return `
+  <div style="border:2px solid var(--sky);border-radius:14px;padding:12px;margin-bottom:14px;background:#fff;">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+      ${PhotoSafe(article.photo, article.nom, 44, 10)}
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13.5px;">${escapeHtml(article.nom)}</div>
+        <div class="muted" style="font-size:12px;">Choisis la taille à ajouter</div>
+      </div>
+      <button type="button" class="mini-btn" onclick="cancelScanPending()">${ICONS.x}</button>
+    </div>
+    <div class="size-chips">
+      ${article.variants.map(v => `<button class="size-chip" ${v.stock===0?'disabled':''} onclick="pickScanSize('${article.id}','${v.taille.replace(/'/g,"\\'")}')">${escapeHtml(v.taille)}</button>`).join('')}
+    </div>
+  </div>`;
+}
+
 function renderLieuPicker(){
   return `
   <div class="field" style="margin-bottom:14px;">
@@ -966,6 +993,7 @@ function renderVente(){
             <button type="button" class="btn btn-outline" style="padding:0 14px;flex-shrink:0;" onclick="openScanner()" title="Scanner avec la caméra">${ICONS.camera}</button>
           </div>
         </div>
+        ${renderScanSizePicker()}
         ${renderLieuPicker()}
         ${detail.length===0 ? '<div class="muted">Clique sur une taille pour ajouter un article à la vente.</div>' : ''}
         <div style="margin-bottom:14px;">
