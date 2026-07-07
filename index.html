@@ -39,7 +39,7 @@
   input, select{font-family:inherit;}
   a{color:inherit;}
 
-  .header{position:sticky;top:0;z-index:40;background:linear-gradient(120deg,var(--sky),var(--sky-deep));padding:22px 24px 40px;}
+  .header{position:fixed;top:0;left:0;right:0;z-index:40;background:linear-gradient(120deg,var(--sky),var(--sky-deep));padding:22px 24px 40px;}
   .header-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
   .logo{display:flex;align-items:center;gap:12px;}
   .logo-badge{height:88px;padding:8px 18px;border-radius:16px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
@@ -1864,7 +1864,17 @@ function render(){
     body = `<div class="container">${content}</div>`;
   }
   root.innerHTML = renderHeader() + body + renderForm() + renderClientForm() + renderToast() + renderMiniCartBar();
+  adjustHeaderOffset();
 }
+
+function adjustHeaderOffset(){
+  const headerEl = document.querySelector('.header');
+  const containerEl = document.querySelector('.container');
+  if (headerEl && containerEl){
+    containerEl.style.paddingTop = (headerEl.offsetHeight + 14) + 'px';
+  }
+}
+window.addEventListener('resize', adjustHeaderOffset);
 
 function renderToast(){
   if (!state.toast) return '';
