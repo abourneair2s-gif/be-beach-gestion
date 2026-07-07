@@ -21,7 +21,7 @@
   body{margin:0;font-family:'DM Sans','Inter',sans-serif;color:var(--ink);
     background:
       linear-gradient(rgba(251,246,236,0.90), rgba(251,246,236,0.93)),
-      url('bg-photo.jpg') no-repeat center top fixed;
+      url('fond-plage.jpg') no-repeat center top fixed;
     background-size:cover;
     min-height:100vh;
   }
@@ -34,8 +34,9 @@
 
   .header{position:relative;background:linear-gradient(120deg,var(--sky),var(--sky-deep));padding:22px 24px 40px;}
   .header-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
-  .logo{display:flex;align-items:center;gap:8px;}
-  .logo-badge{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--sky),var(--coral));display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .logo{display:flex;align-items:center;gap:9px;}
+  .logo-badge{width:36px;height:36px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+  .logo-badge img{width:100%;height:100%;object-fit:contain;padding:3px;}
   .logo-name{font-family:'Fraunces',serif;font-weight:600;font-size:17px;color:var(--ink);}
   .logo-sub{font-size:10px;letter-spacing:1px;color:var(--ink-soft);text-transform:uppercase;}
   .nav{display:flex;gap:8px;flex-wrap:wrap;}
@@ -516,8 +517,9 @@ function renderHeader(){
   <div class="header">
     <div class="header-row">
       <div class="logo">
-        <img src="https://bebeach.fr/cdn/shop/files/logo_BB_8c3a1e79-c03d-48ff-9fb5-4a32001d04c8.png?v=1714516242" alt="Be Beach" style="height:34px;width:auto;display:block;" />
+        <div class="logo-badge"><img src="https://bebeach.fr/cdn/shop/files/logo_BB_8c3a1e79-c03d-48ff-9fb5-4a32001d04c8.png?v=1714516242" alt="Be Beach" /></div>
         <div>
+          <div class="logo-name">Be beach</div>
           <div class="logo-sub">Gestion boutique</div>
         </div>
       </div>
