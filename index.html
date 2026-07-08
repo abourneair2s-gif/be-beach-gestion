@@ -39,7 +39,9 @@
   input, select{font-family:inherit;}
   a{color:inherit;}
 
-  .header{position:fixed;top:0;left:0;right:0;z-index:40;background:linear-gradient(120deg,var(--sky),var(--sky-deep));padding:22px 24px 40px;}
+  .header{position:fixed;top:0;left:0;right:0;z-index:40;background:linear-gradient(120deg,var(--sky),var(--sky-deep));padding:22px 24px 40px;transition:transform 0.25s ease;}
+  .header.header-hidden{transform:translateY(-100%);}
+  .container{transition:padding-top 0.2s ease;}
   .header-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
   .logo{display:flex;align-items:center;gap:12px;}
   .logo-badge{height:88px;padding:8px 18px;border-radius:16px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
@@ -1397,7 +1399,7 @@ function renderHeader(){
     { id:'historique', label:'Historique', icon: ICONS.history },
   ];
   return `
-  <div class="header">
+  <div class="header ${headerHidden ? 'header-hidden' : ''}">
     <div class="header-row">
       <div class="logo">
         <div class="logo-badge"><img src="logo-bebeach.png" alt="Be Beach - La Petite Californie" /></div>
@@ -1995,14 +1997,45 @@ function render(){
   adjustHeaderOffset();
 }
 
+let headerHidden = false;
 function adjustHeaderOffset(){
   const headerEl = document.querySelector('.header');
   const containerEl = document.querySelector('.container');
   if (headerEl && containerEl){
-    containerEl.style.paddingTop = (headerEl.offsetHeight + 14) + 'px';
+    containerEl.style.paddingTop = headerHidden ? '14px' : (headerEl.offsetHeight + 14) + 'px';
   }
 }
 window.addEventListener('resize', adjustHeaderOffset);
+
+// Hide the fixed header when scrolling down (frees up vertical space, useful in
+// landscape on phones), and bring it back as soon as the user scrolls up.
+let lastScrollY = 0;
+let scrollTicking = false;
+function onScrollHeaderVisibility(){
+  scrollTicking = false;
+  const headerEl = document.querySelector('.header');
+  const containerEl = document.querySelector('.container');
+  if (!headerEl || !containerEl) return;
+  const currentY = window.scrollY;
+  const goingDown = currentY > lastScrollY + 4;
+  const goingUp = currentY < lastScrollY - 4;
+  if (goingDown && currentY > headerEl.offsetHeight && !headerHidden){
+    headerHidden = true;
+    headerEl.classList.add('header-hidden');
+    containerEl.style.paddingTop = '14px';
+  } else if (goingUp && headerHidden){
+    headerHidden = false;
+    headerEl.classList.remove('header-hidden');
+    containerEl.style.paddingTop = (headerEl.offsetHeight + 14) + 'px';
+  }
+  lastScrollY = currentY;
+}
+window.addEventListener('scroll', () => {
+  if (!scrollTicking){
+    scrollTicking = true;
+    window.requestAnimationFrame(onScrollHeaderVisibility);
+  }
+}, { passive: true });
 
 function renderToast(){
   if (!state.toast) return '';
