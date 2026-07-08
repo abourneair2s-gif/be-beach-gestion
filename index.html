@@ -326,6 +326,11 @@ let state = {
   exportFrom: '',
   exportTo: '',
   exportLieu: 'Tous',
+  session: null,
+  authChecking: true,
+  authMode: 'login',
+  authError: null,
+  authSaving: false,
 };
 
 function totalStock(article){
@@ -1314,6 +1319,62 @@ function priceDisplay(color){
 }
 
 // ---------- Views ----------
+// ---------- Auth ----------
+function setAuthMode(m){ state.authMode = m; state.authError = null; render(); }
+async function handleAuthSubmit(e){
+  e.preventDefault();
+  const f = e.target;
+  const email = f.email.value.trim();
+  const password = f.password.value;
+  state.authSaving = true; state.authError = null; render();
+  try{
+    if (state.authMode === 'signup'){
+      const { error } = await sb.auth.signUp({ email, password });
+      if (error) throw error;
+      state.authError = null;
+      showToast("Compte créé ! Vérifie si une confirmation par email est nécessaire, sinon tu es déjà connectée.", 'success');
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    }
+  } catch(err){
+    state.authError = err.message === 'Invalid login credentials' ? 'Email ou mot de passe incorrect.' : err.message;
+  }
+  state.authSaving = false;
+  render();
+}
+async function handleLogout(){
+  await sb.auth.signOut();
+}
+function renderAuthScreen(){
+  const isSignup = state.authMode === 'signup';
+  return `
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">
+    <div class="modal" style="max-width:380px;box-shadow:0 12px 40px rgba(59,54,44,0.15);">
+      <div style="display:flex;justify-content:center;margin-bottom:18px;">
+        <div class="logo-badge" style="height:70px;"><img src="logo-bebeach.png" alt="Be Beach" /></div>
+      </div>
+      <div class="serif" style="font-size:19px;font-weight:600;text-align:center;margin-bottom:4px;">${isSignup ? 'Créer un compte' : 'Connexion'}</div>
+      <div class="muted" style="text-align:center;font-size:12.5px;margin-bottom:18px;">Gestion boutique Be Beach</div>
+      <form onsubmit="handleAuthSubmit(event)">
+        <label class="field">Email
+          <input class="input" name="email" type="email" required autocomplete="username" />
+        </label>
+        <label class="field">Mot de passe
+          <input class="input" name="password" type="password" required minlength="6" autocomplete="${isSignup ? 'new-password' : 'current-password'}" />
+        </label>
+        ${state.authError ? `<div style="color:var(--coral-deep);font-size:12.5px;margin-bottom:10px;">${escapeHtml(state.authError)}</div>` : ''}
+        <button type="submit" class="btn btn-coral" style="width:100%;margin-top:4px;" ${state.authSaving?'disabled':''}>${state.authSaving ? '...' : (isSignup ? 'Créer le compte' : 'Se connecter')}</button>
+      </form>
+      <div style="text-align:center;margin-top:14px;font-size:12.5px;">
+        ${isSignup
+          ? `Déjà un compte ? <a href="#" onclick="event.preventDefault();setAuthMode('login')" style="color:var(--sky-deep);">Se connecter</a>`
+          : `Nouveau ici ? <a href="#" onclick="event.preventDefault();setAuthMode('signup')" style="color:var(--sky-deep);">Créer un compte</a>`}
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderHeader(){
   const NAV = [
     { id:'dashboard', label:'Tableau de bord', icon: ICONS.home },
@@ -1332,6 +1393,7 @@ function renderHeader(){
       </div>
       <div class="nav">
         ${NAV.map(n => `<button class="nav-btn ${state.tab===n.id?'active':''}" onclick="setTab('${n.id}')">${n.icon}${n.label}</button>`).join('')}
+        <button class="nav-btn" onclick="handleLogout()" title="Se déconnecter">${ICONS.x} Déconnexion</button>
       </div>
     </div>
     <svg class="wave" viewBox="0 0 1440 60" preserveAspectRatio="none"><path d="M0,30 C240,60 480,0 720,20 C960,40 1200,10 1440,30 L1440,60 L0,60 Z" fill="var(--bg)"/></svg>
@@ -1892,6 +1954,14 @@ function renderForm(){
 
 function render(){
   const root = document.getElementById('app');
+  if (state.authChecking){
+    root.innerHTML = '<div class="loading-screen">Chargement de la boutique…</div>';
+    return;
+  }
+  if (!state.session){
+    root.innerHTML = renderAuthScreen();
+    return;
+  }
   if (state.loading && state.articles.length===0){
     root.innerHTML = '<div class="loading-screen">Chargement de la boutique…</div>';
     return;
@@ -1954,7 +2024,22 @@ sb.channel('bebeach-realtime')
   .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, scheduleRealtimeReload)
   .subscribe();
 
-loadAll();
+sb.auth.onAuthStateChange((_event, session) => {
+  const hadSession = !!state.session;
+  state.session = session;
+  state.authChecking = false;
+  if (session && !hadSession){
+    loadAll();
+  } else if (!session){
+    render();
+  }
+});
+sb.auth.getSession().then(({ data }) => {
+  state.session = data.session;
+  state.authChecking = false;
+  if (data.session) loadAll();
+  else render();
+});
 
 if ('serviceWorker' in navigator){
   window.addEventListener('load', () => {
