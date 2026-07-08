@@ -480,8 +480,8 @@ function filteredClients(){
   }
   if (q){
     list = list.filter(c =>
-      (c.nom||'').toLowerCase().includes(q) ||
-      (c.prenom||'').toLowerCase().includes(q) ||
+      nameWordStartsWith(c.nom, q) ||
+      nameWordStartsWith(c.prenom, q) ||
       (c.email||'').toLowerCase().includes(q) ||
       (c.telephone||'').toLowerCase().includes(q)
     );
@@ -589,11 +589,14 @@ function onClientPickerInput(e){ state.clientPickerQuery = e.target.value; rende
 function clientLabel(c){ return `${c.prenom||''} ${c.nom||''}`.trim() || c.email || c.telephone || 'Client'; }
 function findClientById(id){ return id ? state.clients.find(c => c.id === id) : null; }
 
+function nameWordStartsWith(name, q){
+  return (name||'').toLowerCase().split(/[\s-]+/).some(word => word.startsWith(q));
+}
 function computeClientMatches(q){
   q = (q||'').trim().toLowerCase();
   if (!q) return [];
   return state.clients.filter(c =>
-    (c.nom||'').toLowerCase().includes(q) || (c.prenom||'').toLowerCase().includes(q) ||
+    nameWordStartsWith(c.nom, q) || nameWordStartsWith(c.prenom, q) ||
     (c.email||'').toLowerCase().includes(q) || (c.telephone||'').toLowerCase().includes(q)
   ).slice(0, 6);
 }
