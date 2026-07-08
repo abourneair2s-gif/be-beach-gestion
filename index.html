@@ -471,7 +471,7 @@ async function deleteLieuVente(id, nom){
 }
 
 // ---------- Clients ----------
-function onClientSearchInput(e){ state.clientSearch = e.target.value; renderPreservingFocus(); }
+function onClientSearchInput(e){ state.clientSearch = e.target.value; updateClientsGridDisplay(); }
 function filteredClients(){
   const q = state.clientSearch.trim().toLowerCase();
   let list = state.clients;
@@ -657,17 +657,9 @@ function renderAlphabetTabs(){
   </div>`;
 }
 
-function renderClients(){
+function renderClientsGridHtml(){
   const list = filteredClients();
   return `
-  <div style="margin-top:8px;">
-    <div class="toolbar">
-      ${SearchBox('client-search-input', state.clientSearch, 'onClientSearchInput', 'Rechercher par nom, email ou téléphone...')}
-      <button class="btn btn-outline btn-sm" onclick="copyAllClientEmails()" style="display:flex;align-items:center;gap:6px;">${ICONS.mail} Copier tous les emails</button>
-      <button class="btn btn-outline btn-sm" onclick="exportClientsExcel()">Exporter (Excel)</button>
-      <button class="btn btn-coral" onclick="openAddClientForm()" style="display:flex;align-items:center;gap:6px;">${ICONS.plus} Nouveau client</button>
-    </div>
-    ${renderAlphabetTabs()}
     <div class="stock-grid">
       ${list.map(c => `
         <div class="stock-card">
@@ -688,6 +680,23 @@ function renderClients(){
         </div>`).join('')}
     </div>
     ${list.length===0 ? `<div class="muted" style="margin-top:20px;">${state.clients.length===0 ? "Aucun client enregistré pour le moment." : "Aucun client ne correspond."}</div>` : ''}
+  `;
+}
+function updateClientsGridDisplay(){
+  const el = document.getElementById('clients-grid-wrapper');
+  if (el) el.innerHTML = renderClientsGridHtml();
+}
+function renderClients(){
+  return `
+  <div style="margin-top:8px;">
+    <div class="toolbar">
+      ${SearchBox('client-search-input', state.clientSearch, 'onClientSearchInput', 'Rechercher par nom, email ou téléphone...')}
+      <button class="btn btn-outline btn-sm" onclick="copyAllClientEmails()" style="display:flex;align-items:center;gap:6px;">${ICONS.mail} Copier tous les emails</button>
+      <button class="btn btn-outline btn-sm" onclick="exportClientsExcel()">Exporter (Excel)</button>
+      <button class="btn btn-coral" onclick="openAddClientForm()" style="display:flex;align-items:center;gap:6px;">${ICONS.plus} Nouveau client</button>
+    </div>
+    ${renderAlphabetTabs()}
+    <div id="clients-grid-wrapper">${renderClientsGridHtml()}</div>
   </div>`;
 }
 
